@@ -5,9 +5,9 @@ type EventStatus string
 const (
 	EventApplied EventStatus = "applied"
 	EventSkipped EventStatus = "skipped"
+	EventBlocked EventStatus = "blocked"
 )
 
-// TraceEntry records what happened when replay reached one Event.
 type TraceEntry struct {
 	Index int
 
@@ -15,16 +15,25 @@ type TraceEntry struct {
 	Status  EventStatus
 
 	Unsatisfied []Condition
-	Effects     []Effect
 
-	// Controls records defensive controls evaluated for this reachable event.
+	// Event effects that actually occurred.
+	Effects []Effect
+
+	// All controls evaluated against this event.
 	Controls []ControlResult
+
+	// Convenience summaries of controls that actually acted.
+	ObservedBy  []string
+	BlockedBy   []string
+	RespondedBy []string
+
+	// State changes caused by Reserve responses rather than the event itself.
+	ResponseEffects []Effect
 
 	Before []string
 	After  []string
 }
 
-// RunResult is the complete deterministic result of replaying one Scenario.
 type RunResult struct {
 	ScenarioID string
 

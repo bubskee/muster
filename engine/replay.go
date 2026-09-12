@@ -2,11 +2,6 @@ package engine
 
 import "github.com/bubskee/muster/state"
 
-// Replay executes a Scenario from its initial state.
-//
-// Events are considered in order. An Event whose preconditions are not met is
-// recorded as skipped, but replay continues. This allows later independent
-// Events to remain reachable without introducing graph semantics.
 func Replay(scenario Scenario, controls ...Control) RunResult {
 	current := state.New(scenario.InitialFacts...)
 
@@ -33,6 +28,7 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 			continue
 		}
 
+		// Evaluate every control against the reachable event.
 		for _, control := range controls {
 			entry.Controls = append(
 				entry.Controls,
@@ -40,12 +36,71 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 			)
 		}
 
+		// Vedettes observe. Pickets may stop the event before its effects occur.
+		for i := range entry.Controls {
+			control := &entry.Controls[i]
+
+			if !control.Matched {
+				continue
+			}
+
+			switch control.Action {
+			case ActionObserve:
+				control.Acted = true
+				entry.ObservedBy = append(
+					entry.ObservedBy,
+					control.ControlID,
+				)
+
+			case ActionBlock:
+				control.Acted = true
+				entry.BlockedBy = append(
+					entry.BlockedBy,
+					control.ControlID,
+				)
+			}
+		}
+
+		// Any successful Picket interception prevents the incident event.
+		if len(entry.BlockedBy) > 0 {
+			entry.Status = EventBlocked
+			entry.After = current.Facts()
+
+			result.Trace = append(result.Trace, entry)
+			continue
+		}
+
+		// The incident event succeeds.
 		event.Apply(current)
 
 		entry.Status = EventApplied
 		entry.Effects = append([]Effect(nil), event.Effects...)
-		entry.After = current.Facts()
 
+		// Reserves respond after a successful event.
+		for i := range entry.Controls {
+			control := &entry.Controls[i]
+
+			if !control.Matched || control.Action != ActionRespond {
+				continue
+			}
+
+			control.Acted = true
+			entry.RespondedBy = append(
+				entry.RespondedBy,
+				control.ControlID,
+			)
+
+			for _, effect := range control.Effects {
+				effect.Apply(current)
+
+				entry.ResponseEffects = append(
+					entry.ResponseEffects,
+					effect,
+				)
+			}
+		}
+
+		entry.After = current.Facts()
 		result.Trace = append(result.Trace, entry)
 	}
 

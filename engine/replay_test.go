@@ -180,3 +180,160 @@ func TestReplayRecordsControlRoles(t *testing.T) {
 		t.Errorf("role = %q, want reserve", got[2].Role)
 	}
 }
+
+func TestVedetteObservesWithoutBlocking(t *testing.T) {
+	scenario := engine.Scenario{
+		ID: "excellent-watchmen-open-gates",
+		Events: []engine.Event{
+			{
+				ID: "credential-access",
+				Effects: []engine.Effect{
+					{
+						Fact: "credential:k8s-service-account",
+						Op:   engine.EffectAdd,
+					},
+				},
+			},
+		},
+	}
+
+	vedette := engine.EventControl{
+		ID:       "token-read-detector",
+		Role:     engine.Vedette,
+		EventIDs: []string{"credential-access"},
+		Action:   engine.ActionObserve,
+	}
+
+	result := engine.Replay(scenario, vedette)
+
+	entry := result.Trace[0]
+
+	if entry.Status != engine.EventApplied {
+		t.Fatalf("status = %q, want applied", entry.Status)
+	}
+
+	if len(entry.ObservedBy) != 1 ||
+		entry.ObservedBy[0] != "token-read-detector" {
+		t.Fatalf("observed by = %v, want token-read-detector", entry.ObservedBy)
+	}
+
+	if len(entry.BlockedBy) != 0 {
+		t.Fatalf("blocked by = %v, want none", entry.BlockedBy)
+	}
+
+	want := []string{"credential:k8s-service-account"}
+
+	if !reflect.DeepEqual(result.TerminalState, want) {
+		t.Fatalf(
+			"terminal state = %v, want %v",
+			result.TerminalState,
+			want,
+		)
+	}
+}
+
+func TestPicketBlocksEventEffects(t *testing.T) {
+	scenario := engine.Scenario{
+		ID: "picket-test",
+		Events: []engine.Event{
+			{
+				ID: "credential-access",
+				Effects: []engine.Effect{
+					{
+						Fact: "credential:k8s-service-account",
+						Op:   engine.EffectAdd,
+					},
+				},
+			},
+		},
+	}
+
+	picket := engine.EventControl{
+		ID:       "credential-guard",
+		Role:     engine.Picket,
+		EventIDs: []string{"credential-access"},
+		Action:   engine.ActionBlock,
+	}
+
+	result := engine.Replay(scenario, picket)
+
+	entry := result.Trace[0]
+
+	if entry.Status != engine.EventBlocked {
+		t.Fatalf("status = %q, want blocked", entry.Status)
+	}
+
+	if len(entry.BlockedBy) != 1 ||
+		entry.BlockedBy[0] != "credential-guard" {
+		t.Fatalf("blocked by = %v, want credential-guard", entry.BlockedBy)
+	}
+
+	if len(result.TerminalState) != 0 {
+		t.Fatalf(
+			"terminal state = %v, want empty state",
+			result.TerminalState,
+		)
+	}
+}
+
+func TestReserveRespondsAfterEvent(t *testing.T) {
+	scenario := engine.Scenario{
+		ID:           "reserve-test",
+		InitialFacts: []string{"worker:healthy"},
+		Events: []engine.Event{
+			{
+				ID: "worker-compromise",
+				Effects: []engine.Effect{
+					{
+						Fact: "worker:compromised",
+						Op:   engine.EffectAdd,
+					},
+					{
+						Fact: "worker:healthy",
+						Op:   engine.EffectRemove,
+					},
+				},
+			},
+		},
+	}
+
+	reserve := engine.EventControl{
+		ID:       "rebuild-worker",
+		Role:     engine.Reserve,
+		EventIDs: []string{"worker-compromise"},
+		Action:   engine.ActionRespond,
+		Effects: []engine.Effect{
+			{
+				Fact: "worker:compromised",
+				Op:   engine.EffectRemove,
+			},
+			{
+				Fact: "worker:healthy",
+				Op:   engine.EffectAdd,
+			},
+		},
+	}
+
+	result := engine.Replay(scenario, reserve)
+
+	entry := result.Trace[0]
+
+	if entry.Status != engine.EventApplied {
+		t.Fatalf("status = %q, want applied", entry.Status)
+	}
+
+	if len(entry.RespondedBy) != 1 ||
+		entry.RespondedBy[0] != "rebuild-worker" {
+		t.Fatalf("responded by = %v, want rebuild-worker", entry.RespondedBy)
+	}
+
+	want := []string{"worker:healthy"}
+
+	if !reflect.DeepEqual(result.TerminalState, want) {
+		t.Fatalf(
+			"terminal state = %v, want %v",
+			result.TerminalState,
+			want,
+		)
+	}
+}

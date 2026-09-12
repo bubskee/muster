@@ -10,40 +10,56 @@ const (
 	Reserve Role = "reserve"
 )
 
-// ControlResult records the result of evaluating one control against one event.
-//
-// For Commit 3, controls only report whether they match. They do not yet
-// observe, block, or recover. Those semantics arrive in Commit 4.
+type ControlAction string
+
+const (
+	ActionNone    ControlAction = "none"
+	ActionObserve ControlAction = "observe"
+	ActionBlock   ControlAction = "block"
+	ActionRespond ControlAction = "respond"
+)
+
 type ControlResult struct {
 	ControlID string
 	Role      Role
 	Matched   bool
+
+	Action ControlAction
+	Acted  bool
+
+	Effects []Effect
 }
 
-// Control is one defensive mechanism in a Watchline.
-//
-// Evaluate receives the pre-event state. This matters later: a Picket should
-// be able to judge an event before its effects are applied.
 type Control interface {
 	Evaluate(Event, *state.State) ControlResult
 }
 
-// EventControl is the first deliberately simple Control implementation.
-//
-// It matches explicit event IDs. Later we can grow matching to semantic kinds,
-// tags, state conditions, etc. without changing the replay contract.
 type EventControl struct {
 	ID       string
 	Role     Role
 	EventIDs []string
+
+	Action  ControlAction
+	Effects []Effect
 }
 
 func (c EventControl) Evaluate(event Event, _ *state.State) ControlResult {
-	return ControlResult{
+	matched := c.matches(event)
+
+	result := ControlResult{
 		ControlID: c.ID,
 		Role:      c.Role,
-		Matched:   c.matches(event),
+		Matched:   matched,
 	}
+
+	if !matched {
+		return result
+	}
+
+	result.Action = c.Action
+	result.Effects = append([]Effect(nil), c.Effects...)
+
+	return result
 }
 
 func (c EventControl) matches(event Event) bool {
