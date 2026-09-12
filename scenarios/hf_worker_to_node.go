@@ -2,7 +2,16 @@ package scenarios
 
 import "github.com/bubskee/muster/engine"
 
-const HFWorkerToNodeID = "hf-worker-to-node"
+const (
+	HFWorkerToNodeID = "hf-worker-to-node"
+
+	EventMaliciousDataset       = "malicious-dataset-reaches-worker"
+	EventWorkerCodeExecution    = "worker-code-execution"
+	EventServiceAccountAccess   = "service-account-credential-access"
+	EventKubernetesAPIDiscovery = "kubernetes-api-discovery"
+	EventPrivilegedHostPath     = "privileged-hostpath-workload"
+	EventNodeAccess             = "node-access"
+)
 
 // HFWorkerToNode returns a deliberately small semantic replay derived from the
 // July 2026 Hugging Face incident.
@@ -22,7 +31,7 @@ func HFWorkerToNode() engine.Scenario {
 		ID: HFWorkerToNodeID,
 		Events: []engine.Event{
 			{
-				ID: "malicious-dataset-reaches-worker",
+				ID: EventMaliciousDataset,
 				Effects: []engine.Effect{
 					{
 						Fact: "dataset:malicious-on-worker",
@@ -31,7 +40,7 @@ func HFWorkerToNode() engine.Scenario {
 				},
 			},
 			{
-				ID: "worker-code-execution",
+				ID: EventWorkerCodeExecution,
 				Preconditions: []engine.Condition{
 					{
 						Fact: "dataset:malicious-on-worker",
@@ -46,7 +55,7 @@ func HFWorkerToNode() engine.Scenario {
 				},
 			},
 			{
-				ID: "service-account-credential-access",
+				ID: EventServiceAccountAccess,
 				Preconditions: []engine.Condition{
 					{
 						Fact: "access:worker",
@@ -61,7 +70,7 @@ func HFWorkerToNode() engine.Scenario {
 				},
 			},
 			{
-				ID: "kubernetes-api-discovery",
+				ID: EventKubernetesAPIDiscovery,
 				Preconditions: []engine.Condition{
 					{
 						Fact: "credential:k8s-service-account",
@@ -76,7 +85,7 @@ func HFWorkerToNode() engine.Scenario {
 				},
 			},
 			{
-				ID: "privileged-hostpath-workload",
+				ID: EventPrivilegedHostPath,
 				Preconditions: []engine.Condition{
 					{
 						Fact: "credential:k8s-service-account",
@@ -95,7 +104,7 @@ func HFWorkerToNode() engine.Scenario {
 				},
 			},
 			{
-				ID: "node-access",
+				ID: EventNodeAccess,
 				Preconditions: []engine.Condition{
 					{
 						Fact: "workload:privileged-hostpath",
