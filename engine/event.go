@@ -58,15 +58,22 @@ type Event struct {
 	Effects       []Effect
 }
 
-// CanApply reports whether all of the Event's preconditions currently hold.
-func (e Event) CanApply(s *state.State) bool {
+// UnsatisfiedPreconditions returns the conditions that do not currently hold.
+func (e Event) UnsatisfiedPreconditions(s *state.State) []Condition {
+	var unsatisfied []Condition
+
 	for _, condition := range e.Preconditions {
 		if !condition.SatisfiedBy(s) {
-			return false
+			unsatisfied = append(unsatisfied, condition)
 		}
 	}
 
-	return true
+	return unsatisfied
+}
+
+// CanApply reports whether all of the Event's preconditions currently hold.
+func (e Event) CanApply(s *state.State) bool {
+	return len(e.UnsatisfiedPreconditions(s)) == 0
 }
 
 // Apply applies the Event's effects if all preconditions hold.
