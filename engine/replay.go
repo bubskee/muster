@@ -7,7 +7,7 @@ import "github.com/bubskee/muster/state"
 // Events are considered in order. An Event whose preconditions are not met is
 // recorded as skipped, but replay continues. This allows later independent
 // Events to remain reachable without introducing graph semantics.
-func Replay(scenario Scenario) RunResult {
+func Replay(scenario Scenario, controls ...Control) RunResult {
 	current := state.New(scenario.InitialFacts...)
 
 	result := RunResult{
@@ -31,6 +31,13 @@ func Replay(scenario Scenario) RunResult {
 
 			result.Trace = append(result.Trace, entry)
 			continue
+		}
+
+		for _, control := range controls {
+			entry.Controls = append(
+				entry.Controls,
+				control.Evaluate(event, current),
+			)
 		}
 
 		event.Apply(current)

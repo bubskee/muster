@@ -14,14 +14,12 @@ type TraceEntry struct {
 	EventID string
 	Status  EventStatus
 
-	// Unsatisfied contains the preconditions that prevented a skipped
-	// event from occurring.
 	Unsatisfied []Condition
+	Effects     []Effect
 
-	// Effects contains the effects applied by a successful event.
-	Effects []Effect
+	// Controls records defensive controls evaluated for this reachable event.
+	Controls []ControlResult
 
-	// State snapshots make the trace self-contained and easy to inspect.
 	Before []string
 	After  []string
 }

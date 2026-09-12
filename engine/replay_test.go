@@ -113,3 +113,70 @@ func TestReplayProducesDeterministicTraceAndTerminalState(t *testing.T) {
 		)
 	}
 }
+
+func TestReplayRecordsControlRoles(t *testing.T) {
+	scenario := engine.Scenario{
+		ID: "control-test",
+		Events: []engine.Event{
+			{
+				ID: "worker-rce",
+				Effects: []engine.Effect{
+					{
+						Fact: "access:worker",
+						Op:   engine.EffectAdd,
+					},
+				},
+			},
+		},
+	}
+
+	controls := []engine.Control{
+		engine.EventControl{
+			ID:       "worker-execution-detector",
+			Role:     engine.Vedette,
+			EventIDs: []string{"worker-rce"},
+		},
+		engine.EventControl{
+			ID:       "hostpath-admission",
+			Role:     engine.Picket,
+			EventIDs: []string{"privileged-pod"},
+		},
+		engine.EventControl{
+			ID:       "worker-rebuild",
+			Role:     engine.Reserve,
+			EventIDs: []string{"worker-rce"},
+		},
+	}
+
+	result := engine.Replay(scenario, controls...)
+
+	if len(result.Trace) != 1 {
+		t.Fatalf("trace length = %d, want 1", len(result.Trace))
+	}
+
+	got := result.Trace[0].Controls
+
+	if len(got) != 3 {
+		t.Fatalf("control results = %d, want 3", len(got))
+	}
+
+	if !got[0].Matched {
+		t.Error("expected vedette to match worker-rce")
+	}
+
+	if got[0].Role != engine.Vedette {
+		t.Errorf("role = %q, want vedette", got[0].Role)
+	}
+
+	if got[1].Matched {
+		t.Error("picket unexpectedly matched worker-rce")
+	}
+
+	if !got[2].Matched {
+		t.Error("expected reserve to match worker-rce")
+	}
+
+	if got[2].Role != engine.Reserve {
+		t.Errorf("role = %q, want reserve", got[2].Role)
+	}
+}
