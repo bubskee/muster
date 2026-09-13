@@ -346,3 +346,354 @@ func gate2ContainsFact(facts []string, want string) bool {
 
 	return false
 }
+
+func TestGate2MemorylessAblationCollapsesEarlyBetweenDistinction(t *testing.T) {
+	controls := gate2BroadCorrelatedMemoryless()
+
+	early := engine.Replay(
+		scenarios.Gate2EarlyFailure(),
+		controls...,
+	)
+
+	between := engine.Replay(
+		scenarios.Gate2BetweenFailure(),
+		controls...,
+	)
+
+	earlyNode := gate2ContainsFact(
+		early.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	betweenNode := gate2ContainsFact(
+		between.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	// Removing the ability to consume persisted evidence should collapse
+	// the original EARLY/BETWEEN outcome distinction.
+	if !earlyNode || !betweenNode {
+		t.Fatalf(
+			"memoryless ablation should make both runs reach node: early=%v between=%v",
+			early.TerminalState,
+			between.TerminalState,
+		)
+	}
+
+	earlyE3 := gate2TraceEntry(
+		t,
+		early,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	betweenE3 := gate2TraceEntry(
+		t,
+		between,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	earlyH1 := gate2ControlResult(
+		t,
+		earlyE3,
+		"review-credential-history-memoryless",
+	)
+
+	betweenH1 := gate2ControlResult(
+		t,
+		betweenE3,
+		"review-credential-history-memoryless",
+	)
+
+	// EARLY has no historical alert because telemetry was already dead
+	// when E2 occurred.
+	if earlyH1.Disposition != engine.DispositionWaiting || earlyH1.Acted {
+		t.Fatalf(
+			"EARLY memoryless H1 = %+v, want waiting and not acted",
+			earlyH1,
+		)
+	}
+
+	if earlyH1.Reason != "missing:"+Gate2AlertCredentialTheft {
+		t.Fatalf(
+			"EARLY memoryless H1 reason = %q, want missing historical alert",
+			earlyH1.Reason,
+		)
+	}
+
+	// BETWEEN still has the historical alert, but the ablation prevents
+	// that alert from being consumed after its originating telemetry
+	// substrate has disappeared.
+	if betweenH1.Disposition != engine.DispositionWaiting || betweenH1.Acted {
+		t.Fatalf(
+			"BETWEEN memoryless H1 = %+v, want waiting and not acted",
+			betweenH1,
+		)
+	}
+
+	wantBetweenReason := "present:" + scenarios.FactGate2WorkerTelemetryCompromised
+	if betweenH1.Reason != wantBetweenReason {
+		t.Fatalf(
+			"BETWEEN memoryless H1 reason = %q, want %q",
+			betweenH1.Reason,
+			wantBetweenReason,
+		)
+	}
+
+	// Neither run should revoke the credential, so replay remains possible.
+	for name, result := range map[string]engine.RunResult{
+		"early":   early,
+		"between": between,
+	} {
+		if !gate2ContainsFact(
+			result.TerminalState,
+			scenarios.FactGate2ClusterCredential,
+		) {
+			t.Fatalf(
+				"%s unexpectedly revoked cluster credential: %v",
+				name,
+				result.TerminalState,
+			)
+		}
+
+		e4 := gate2TraceEntry(
+			t,
+			result,
+			scenarios.EventGate2CredentialReplay,
+		)
+
+		if e4.Status != engine.EventApplied {
+			t.Fatalf(
+				"%s E4 status = %q, want applied",
+				name,
+				e4.Status,
+			)
+		}
+	}
+}
+
+func TestGate2PrematureContainmentRequiresBothL1AndR2(t *testing.T) {
+	baseline := Gate2FullResponseWithoutPrematureContainment()
+
+	tests := []struct {
+		name     string
+		controls []engine.Control
+		wantNode bool
+	}{
+		{
+			name:     "baseline",
+			controls: baseline,
+			wantNode: false,
+		},
+		{
+			name: "plus-l1-only",
+			controls: append(
+				append([]engine.Control(nil), baseline...),
+				Gate2L1WorkerContainmentEscalation(),
+			),
+			wantNode: false,
+		},
+		{
+			name: "plus-r2-only",
+			controls: append(
+				append([]engine.Control(nil), baseline...),
+				Gate2R2IsolateWorker(),
+			),
+			wantNode: false,
+		},
+		{
+			name: "plus-l1-and-r2",
+			controls: append(
+				append([]engine.Control(nil), baseline...),
+				Gate2L1WorkerContainmentEscalation(),
+				Gate2R2IsolateWorker(),
+			),
+			wantNode: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := engine.Replay(
+				scenarios.Gate2NoFailure(),
+				tt.controls...,
+			)
+
+			gotNode := gate2ContainsFact(
+				result.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			if gotNode != tt.wantNode {
+				t.Fatalf(
+					"terminal state = %v, node-access = %v, want %v",
+					result.TerminalState,
+					gotNode,
+					tt.wantNode,
+				)
+			}
+		})
+	}
+}
+
+func TestGate2L1AloneEscalatesWithoutContainment(t *testing.T) {
+	controls := append(
+		Gate2FullResponseWithoutPrematureContainment(),
+		Gate2L1WorkerContainmentEscalation(),
+	)
+
+	result := engine.Replay(
+		scenarios.Gate2NoFailure(),
+		controls...,
+	)
+
+	e2 := gate2TraceEntry(
+		t,
+		result,
+		scenarios.EventGate2CredentialTheft,
+	)
+
+	l1 := gate2ControlResult(
+		t,
+		e2,
+		"escalate-worker-containment",
+	)
+
+	if l1.Disposition != engine.DispositionReady || !l1.Acted {
+		t.Fatalf(
+			"L1 = %+v, want ready and acted",
+			l1,
+		)
+	}
+
+	if !gate2ContainsFact(
+		e2.After,
+		scenarios.FactGate2WorkerAccess,
+	) {
+		t.Fatalf(
+			"L1 alone unexpectedly removed worker access: %v",
+			e2.After,
+		)
+	}
+
+	e3 := gate2TraceEntry(
+		t,
+		result,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	if e3.Status != engine.EventApplied {
+		t.Fatalf(
+			"E3 status = %q, want applied",
+			e3.Status,
+		)
+	}
+
+	if gate2ContainsFact(
+		result.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	) {
+		t.Fatalf(
+			"L1 alone worsened outcome: %v",
+			result.TerminalState,
+		)
+	}
+}
+
+func TestGate2PrematureContainmentInvariantToControlDeclarationOrder(t *testing.T) {
+	tests := []struct {
+		name     string
+		controls []engine.Control
+		wantNode bool
+	}{
+		{
+			name:     "baseline",
+			controls: Gate2FullResponseWithoutPrematureContainment(),
+			wantNode: false,
+		},
+		{
+			name:     "jackpot",
+			controls: Gate2FullResponseWithPrematureContainment(),
+			wantNode: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			forward := engine.Replay(
+				scenarios.Gate2NoFailure(),
+				tt.controls...,
+			)
+
+			reversed := engine.Replay(
+				scenarios.Gate2NoFailure(),
+				gate2ReverseControls(tt.controls)...,
+			)
+
+			forwardNode := gate2ContainsFact(
+				forward.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			reversedNode := gate2ContainsFact(
+				reversed.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			if forwardNode != tt.wantNode {
+				t.Fatalf(
+					"forward node-access = %v, want %v; terminal=%v",
+					forwardNode,
+					tt.wantNode,
+					forward.TerminalState,
+				)
+			}
+
+			if reversedNode != tt.wantNode {
+				t.Fatalf(
+					"reversed node-access = %v, want %v; terminal=%v",
+					reversedNode,
+					tt.wantNode,
+					reversed.TerminalState,
+				)
+			}
+
+			if !gate2SameFacts(
+				forward.TerminalState,
+				reversed.TerminalState,
+			) {
+				t.Fatalf(
+					"terminal state depends on control declaration order:\nforward=%v\nreversed=%v",
+					forward.TerminalState,
+					reversed.TerminalState,
+				)
+			}
+		})
+	}
+}
+
+func gate2SameFacts(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	seen := make(map[string]int, len(a))
+
+	for _, fact := range a {
+		seen[fact]++
+	}
+
+	for _, fact := range b {
+		seen[fact]--
+		if seen[fact] < 0 {
+			return false
+		}
+	}
+
+	for _, count := range seen {
+		if count != 0 {
+			return false
+		}
+	}
+
+	return true
+}

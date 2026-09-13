@@ -165,3 +165,60 @@ func Gate2FullResponseWithPrematureContainment() []engine.Control {
 		Gate2R2IsolateWorker(),
 	)
 }
+
+func gate2MemorylessCredentialHistoryReview() engine.EventControl {
+	return engine.EventControl{
+		ID:       "review-credential-history-memoryless",
+		EventIDs: []string{scenarios.EventGate2K8sDiscovery},
+		Requires: []engine.Condition{
+			{
+				Fact: Gate2AlertCredentialTheft,
+				Op:   engine.ConditionPresent,
+			},
+			{
+				// Ablation: historical evidence is usable only while its
+				// originating telemetry substrate is still healthy.
+				Fact: scenarios.FactGate2WorkerTelemetryCompromised,
+				Op:   engine.ConditionAbsent,
+			},
+		},
+		Substrate: "soc-queue",
+		SuppressedBy: []engine.Condition{
+			{
+				Fact: Gate2OverloadedSOCQueue,
+				Op:   engine.ConditionPresent,
+			},
+		},
+		Action: engine.ActionReview,
+		Effects: []engine.Effect{
+			{
+				Fact: Gate2ReviewedClusterIntegrity,
+				Op:   engine.EffectAdd,
+			},
+		},
+	}
+}
+
+func gate2BroadCorrelatedMemoryless() []engine.Control {
+	return []engine.Control{
+		Gate2V1CredentialTheft(),
+		Gate2V2WorkerK8sDiscovery(),
+
+		gate2MemorylessCredentialHistoryReview(),
+		Gate2H2K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}
+
+func gate2ReverseControls(controls []engine.Control) []engine.Control {
+	reversed := append([]engine.Control(nil), controls...)
+
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+
+	return reversed
+}
