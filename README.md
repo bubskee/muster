@@ -61,20 +61,10 @@ incident. The mechanism is the point:
 
 > **Containment is not always causally independent of investigation.**
 
-You can reproduce both runs directly:
+You can reproduce the comparison directly:
 
 ```bash
-# contained
-go run . replay \
-  --scenario examples/notebook/toy-jackpot.yaml \
-  --controls examples/notebook/toy-controls.yaml \
-  --only-controls worker-credential-theft,worker-k8s-discovery,review-k8s-discovery,assess-cluster-integrity,escalate-cluster-integrity,revoke-cluster-credential
-
-# same Watchline, plus early isolation -> adverse outcome
-go run . replay \
-  --scenario examples/notebook/toy-jackpot.yaml \
-  --controls examples/notebook/toy-controls.yaml \
-  --only-controls worker-credential-theft,worker-k8s-discovery,review-k8s-discovery,assess-cluster-integrity,escalate-cluster-integrity,revoke-cluster-credential,escalate-worker-containment,isolate-worker
+go run . experiment --file experiments/toy-jackpot.yaml
 ```
 
 ## Watchline
@@ -82,7 +72,7 @@ go run . replay \
 Watchline groups defenses by role rather than product or infrastructure layer:
 
 **🔭 Vedette — observe**
-Detect, correlate, classify, or escalate evidence.
+Detect, correlate, classify, or surface evidence.
 
 **🛡️ Picket — intervene**
 Prevent or interrupt attacker transitions.
@@ -198,7 +188,7 @@ See [`examples/hf-july-2026/`](examples/hf-july-2026/) for provenance and modeli
 ## Anthropic PyPI example
 
 A second public-record abstraction follows Anthropic's **2026 Claude Mythos 5 /
-PyPI incident** across three defensive owners: an evaluation environment, a
+PyPI incident** across three defensive boundaries: an evaluation environment, a
 public package registry, and a third-party security vendor.
 
 The example asks where a Watchline could interrupt the progression from
@@ -207,6 +197,10 @@ execution, credential exposure, and live-database access.
 
 See [`examples/anthropic-pypi-2026/`](examples/anthropic-pypi-2026/) for the
 compressed scenario, controls, provenance, and caveats.
+
+```bash
+go run . experiment --file experiments/anthropic-pypi-2026.yaml
+```
 
 ## Model semantics and limits
 

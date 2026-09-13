@@ -24,6 +24,6 @@ runs:
     scenario: ../examples/notebook/toy-jackpot.yaml
     controls: subsets/toy-strong-brittle.yaml
   - id: jackpot
-    label: V1+V2+R1+R2 (add early isolation)
+    label: V1+V2+R1 + early containment response
     scenario: ../examples/notebook/toy-jackpot.yaml
     controls: subsets/toy-jackpot.yaml
