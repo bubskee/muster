@@ -278,3 +278,67 @@ func Gate2DiverseReview() []engine.Control {
 		Gate2R1RevokeClusterCredential(),
 	}
 }
+
+func Gate2CC() []engine.Control {
+	return []engine.Control{
+		// Correlated observation.
+		Gate2V1CredentialTheft(),
+		Gate2V2WorkerK8sDiscovery(),
+
+		// Correlated review.
+		Gate2H1CredentialHistoryReview(),
+		Gate2H2K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}
+
+func Gate2CD() []engine.Control {
+	return []engine.Control{
+		// Correlated observation.
+		Gate2V1CredentialTheft(),
+		Gate2V2WorkerK8sDiscovery(),
+
+		// Diverse review.
+		Gate2H1CredentialHistoryReview(),
+		Gate2A1K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}
+
+func Gate2DC() []engine.Control {
+	return []engine.Control{
+		// Diverse observation.
+		Gate2V2WorkerK8sDiscovery(),
+		Gate2V3K8sAuditDiscovery(),
+
+		// Correlated review.
+		Gate2H1CredentialHistoryReview(),
+		Gate2H2K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}
+
+func Gate2DD() []engine.Control {
+	return []engine.Control{
+		// Diverse observation.
+		Gate2V2WorkerK8sDiscovery(),
+		Gate2V3K8sAuditDiscovery(),
+
+		// Diverse review.
+		Gate2H1CredentialHistoryReview(),
+		Gate2A1K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}

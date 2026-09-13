@@ -1174,3 +1174,78 @@ func TestGate2BAgentFailureDoesNotMakeDiverseReviewMagicallyBetter(t *testing.T)
 		)
 	}
 }
+
+func TestGate2CIntegratedCompositionMatrix(t *testing.T) {
+	type architecture struct {
+		name     string
+		controls func() []engine.Control
+	}
+
+	type treatment struct {
+		name     string
+		scenario func() engine.Scenario
+	}
+
+	architectures := []architecture{
+		{"cc", Gate2CC},
+		{"cd", Gate2CD},
+		{"dc", Gate2DC},
+		{"dd", Gate2DD},
+	}
+
+	treatments := []treatment{
+		{"none", scenarios.Gate2BetweenFailure},
+		{"soc-failure", scenarios.Gate2BetweenSOCReviewFailure},
+		{"agent-failure", scenarios.Gate2BetweenAgentReviewFailure},
+	}
+
+	wantNode := map[string]map[string]bool{
+		"cc": {
+			"none":          false,
+			"soc-failure":   true,
+			"agent-failure": false,
+		},
+		"cd": {
+			"none":          false,
+			"soc-failure":   true,
+			"agent-failure": false,
+		},
+		"dc": {
+			"none":          false,
+			"soc-failure":   true,
+			"agent-failure": false,
+		},
+		"dd": {
+			"none":          false,
+			"soc-failure":   false,
+			"agent-failure": true,
+		},
+	}
+
+	for _, arch := range architectures {
+		for _, treatment := range treatments {
+			t.Run(arch.name+"-"+treatment.name, func(t *testing.T) {
+				result := engine.Replay(
+					treatment.scenario(),
+					arch.controls()...,
+				)
+
+				gotNode := gate2ContainsFact(
+					result.TerminalState,
+					scenarios.FactGate2NodeAccess,
+				)
+
+				want := wantNode[arch.name][treatment.name]
+
+				if gotNode != want {
+					t.Fatalf(
+						"node-access = %v, want %v; terminal=%v",
+						gotNode,
+						want,
+						result.TerminalState,
+					)
+				}
+			})
+		}
+	}
+}

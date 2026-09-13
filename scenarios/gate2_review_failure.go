@@ -29,3 +29,23 @@ func Gate2AgentReviewFailure() engine.Scenario {
 	)
 	return scenario
 }
+
+func Gate2BetweenSOCReviewFailure() engine.Scenario {
+	scenario := Gate2BetweenFailure()
+	scenario.ID = "gate2-between-soc-review-failure"
+	scenario.InitialFacts = append(
+		scenario.InitialFacts,
+		FactGate2SOCQueueOverloaded,
+	)
+	return scenario
+}
+
+func Gate2BetweenAgentReviewFailure() engine.Scenario {
+	scenario := Gate2BetweenFailure()
+	scenario.ID = "gate2-between-agent-review-failure"
+	scenario.InitialFacts = append(
+		scenario.InitialFacts,
+		FactGate2AgentReviewerUnavailable,
+	)
+	return scenario
+}
