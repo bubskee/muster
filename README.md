@@ -40,3 +40,46 @@ go run . replay \
 
 YAML is intentionally declarative. It maps to existing `engine.Scenario` and
 `engine.EventControl` values; replay semantics remain in Go.
+
+## Experiments
+
+Run a batch of scenario/control-set pairs and render the result as Markdown,
+JSON, or CSV:
+
+```bash
+go run . experiment --file experiments/hf-july-2026.yaml
+go run . experiment --file experiments/hf-july-2026.yaml --format json
+go run . experiment --file experiments/hf-july-2026.yaml --format csv
+```
+
+Experiment files are presentation/orchestration only. Each run still loads a
+normal scenario and control set and calls the existing replay engine. Metrics
+are terminal-state facts selected for the report.
+
+### Public-record Hugging Face example
+
+`examples/hf-july-2026/` contains a deliberately compressed abstraction of the
+July 2026 Hugging Face intrusion, based on Hugging Face's published technical
+timeline. It is not a forensic reconstruction. The example preserves two
+independent lateral-movement paths and compares three defensive
+counterfactuals against an observed-signal/no-page baseline.
+
+See `examples/hf-july-2026/README.md` for scope and provenance.
+
+## writeup thoughts
+
+> Existing frameworks specify what responders should do. Muster is a small executable layer for asking how those actions compose against a concrete incident trajectory.
+
+one-month-more target:
+```
+CACAO / IR playbook
+       ↓
+extract defensive actions
+       ↓
+Watchline roles
+       ↓
+Muster counterfactual replay
+       ↓
+"what does this playbook actually buy us
+ against this incident trace?"
+ ```
