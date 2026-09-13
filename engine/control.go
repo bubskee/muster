@@ -129,6 +129,11 @@ func (c EventControl) matches(event Event) bool {
 	return false
 }
 
+// Phase reports the replay phase in which this control is evaluated.
+func (c EventControl) Phase() ControlAction {
+	return c.Action
+}
+
 func suppressionReason(condition Condition) string {
 	switch condition.Op {
 	case ConditionPresent:

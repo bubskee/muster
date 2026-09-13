@@ -923,3 +923,254 @@ func TestGate2PipelineCollapsePreservesPrematureContainmentNonMonotonicity(t *te
 		)
 	}
 }
+
+func TestGate2BReviewBudgetMatrix(t *testing.T) {
+	tests := []struct {
+		name     string
+		scenario engine.Scenario
+		controls []engine.Control
+		wantNode bool
+	}{
+		{
+			name:     "correlated-none",
+			scenario: scenarios.Gate2NoFailure(),
+			controls: Gate2CorrelatedReview(),
+			wantNode: false,
+		},
+		{
+			name:     "correlated-soc-failure",
+			scenario: scenarios.Gate2SOCReviewFailure(),
+			controls: Gate2CorrelatedReview(),
+			wantNode: true,
+		},
+		{
+			name:     "correlated-agent-failure",
+			scenario: scenarios.Gate2AgentReviewFailure(),
+			controls: Gate2CorrelatedReview(),
+			wantNode: false,
+		},
+		{
+			name:     "diverse-none",
+			scenario: scenarios.Gate2NoFailure(),
+			controls: Gate2DiverseReview(),
+			wantNode: false,
+		},
+		{
+			name:     "diverse-soc-failure",
+			scenario: scenarios.Gate2SOCReviewFailure(),
+			controls: Gate2DiverseReview(),
+			wantNode: false,
+		},
+		{
+			name:     "diverse-agent-failure",
+			scenario: scenarios.Gate2AgentReviewFailure(),
+			controls: Gate2DiverseReview(),
+			wantNode: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := engine.Replay(
+				tt.scenario,
+				tt.controls...,
+			)
+
+			gotNode := gate2ContainsFact(
+				result.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			if gotNode != tt.wantNode {
+				t.Fatalf(
+					"terminal state = %v, node-access = %v, want %v",
+					result.TerminalState,
+					gotNode,
+					tt.wantNode,
+				)
+			}
+		})
+	}
+}
+
+func TestGate2BSOCFailureRewardsReviewIndependence(t *testing.T) {
+	correlated := engine.Replay(
+		scenarios.Gate2SOCReviewFailure(),
+		Gate2CorrelatedReview()...,
+	)
+
+	diverse := engine.Replay(
+		scenarios.Gate2SOCReviewFailure(),
+		Gate2DiverseReview()...,
+	)
+
+	correlatedE3 := gate2TraceEntry(
+		t,
+		correlated,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	h1 := gate2ControlResult(
+		t,
+		correlatedE3,
+		"review-credential-history",
+	)
+
+	h2 := gate2ControlResult(
+		t,
+		correlatedE3,
+		"review-k8s-discovery",
+	)
+
+	if h1.Disposition != engine.DispositionSuppressed || h1.Acted {
+		t.Fatalf(
+			"correlated H1 = %+v, want suppressed and not acted",
+			h1,
+		)
+	}
+
+	if h2.Disposition != engine.DispositionSuppressed || h2.Acted {
+		t.Fatalf(
+			"correlated H2 = %+v, want suppressed and not acted",
+			h2,
+		)
+	}
+
+	if h1.Reason != scenarios.FactGate2SOCQueueOverloaded {
+		t.Fatalf(
+			"H1 suppression reason = %q, want %q",
+			h1.Reason,
+			scenarios.FactGate2SOCQueueOverloaded,
+		)
+	}
+
+	if h2.Reason != scenarios.FactGate2SOCQueueOverloaded {
+		t.Fatalf(
+			"H2 suppression reason = %q, want %q",
+			h2.Reason,
+			scenarios.FactGate2SOCQueueOverloaded,
+		)
+	}
+
+	if !gate2ContainsFact(
+		correlated.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	) {
+		t.Fatalf(
+			"correlated SOC failure should reach node: %v",
+			correlated.TerminalState,
+		)
+	}
+
+	diverseE3 := gate2TraceEntry(
+		t,
+		diverse,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	diverseH1 := gate2ControlResult(
+		t,
+		diverseE3,
+		"review-credential-history",
+	)
+
+	a1 := gate2ControlResult(
+		t,
+		diverseE3,
+		"review-k8s-discovery-agent",
+	)
+
+	if diverseH1.Disposition != engine.DispositionSuppressed || diverseH1.Acted {
+		t.Fatalf(
+			"diverse H1 = %+v, want suppressed and not acted",
+			diverseH1,
+		)
+	}
+
+	if a1.Disposition != engine.DispositionReady || !a1.Acted {
+		t.Fatalf(
+			"diverse A1 = %+v, want ready and acted",
+			a1,
+		)
+	}
+
+	r1 := gate2ControlResult(
+		t,
+		diverseE3,
+		"revoke-cluster-credential",
+	)
+
+	if r1.Disposition != engine.DispositionReady || !r1.Acted {
+		t.Fatalf(
+			"diverse R1 = %+v, want ready and acted",
+			r1,
+		)
+	}
+
+	if gate2ContainsFact(
+		diverse.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	) {
+		t.Fatalf(
+			"diverse SOC failure reached node: %v",
+			diverse.TerminalState,
+		)
+	}
+}
+
+func TestGate2BAgentFailureDoesNotMakeDiverseReviewMagicallyBetter(t *testing.T) {
+	result := engine.Replay(
+		scenarios.Gate2AgentReviewFailure(),
+		Gate2DiverseReview()...,
+	)
+
+	e3 := gate2TraceEntry(
+		t,
+		result,
+		scenarios.EventGate2K8sDiscovery,
+	)
+
+	a1 := gate2ControlResult(
+		t,
+		e3,
+		"review-k8s-discovery-agent",
+	)
+
+	h1 := gate2ControlResult(
+		t,
+		e3,
+		"review-credential-history",
+	)
+
+	if a1.Disposition != engine.DispositionSuppressed || a1.Acted {
+		t.Fatalf(
+			"A1 = %+v, want suppressed and not acted",
+			a1,
+		)
+	}
+
+	if a1.Reason != scenarios.FactGate2AgentReviewerUnavailable {
+		t.Fatalf(
+			"A1 suppression reason = %q, want %q",
+			a1.Reason,
+			scenarios.FactGate2AgentReviewerUnavailable,
+		)
+	}
+
+	if h1.Disposition != engine.DispositionReady || !h1.Acted {
+		t.Fatalf(
+			"H1 = %+v, want ready and acted",
+			h1,
+		)
+	}
+
+	if gate2ContainsFact(
+		result.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	) {
+		t.Fatalf(
+			"surviving H1 should preserve secure outcome: %v",
+			result.TerminalState,
+		)
+	}
+}

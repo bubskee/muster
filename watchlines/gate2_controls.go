@@ -12,7 +12,8 @@ const (
 	Gate2CriticalClusterIntegrity   = "critical:cluster-integrity"
 	Gate2EscalatedClusterIntegrity  = "escalated:cluster-integrity"
 	Gate2EscalatedWorkerContainment = "escalated:worker-containment"
-	Gate2OverloadedSOCQueue         = "overloaded:soc-queue"
+	Gate2OverloadedSOCQueue         = scenarios.FactGate2SOCQueueOverloaded
+	Gate2AgentReviewerUnavailable   = scenarios.FactGate2AgentReviewerUnavailable
 )
 
 func Gate2V1CredentialTheft() engine.EventControl {
@@ -221,4 +222,59 @@ func gate2ReverseControls(controls []engine.Control) []engine.Control {
 	}
 
 	return reversed
+}
+
+func Gate2A1K8sDiscoveryReview() engine.EventControl {
+	return engine.EventControl{
+		ID:        "review-k8s-discovery-agent",
+		EventIDs:  []string{scenarios.EventGate2K8sDiscovery},
+		Substrate: "independent-agent-reviewer",
+		Requires: []engine.Condition{
+			{
+				Fact: Gate2AlertK8sDiscovery,
+				Op:   engine.ConditionPresent,
+			},
+		},
+		SuppressedBy: []engine.Condition{
+			{
+				Fact: scenarios.FactGate2AgentReviewerUnavailable,
+				Op:   engine.ConditionPresent,
+			},
+		},
+		Action: engine.ActionReview,
+		Effects: []engine.Effect{
+			{
+				Fact: Gate2ReviewedClusterIntegrity,
+				Op:   engine.EffectAdd,
+			},
+		},
+	}
+}
+
+func Gate2CorrelatedReview() []engine.Control {
+	return []engine.Control{
+		Gate2V1CredentialTheft(),
+		Gate2V3K8sAuditDiscovery(),
+
+		Gate2H1CredentialHistoryReview(),
+		Gate2H2K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
+}
+
+func Gate2DiverseReview() []engine.Control {
+	return []engine.Control{
+		Gate2V1CredentialTheft(),
+		Gate2V3K8sAuditDiscovery(),
+
+		Gate2H1CredentialHistoryReview(),
+		Gate2A1K8sDiscoveryReview(),
+
+		Gate2C1ClusterIntegrityCriticality(),
+		Gate2E1ClusterIntegrityEscalation(),
+		Gate2R1RevokeClusterCredential(),
+	}
 }

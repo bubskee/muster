@@ -508,3 +508,88 @@ func findControl(
 
 	return engine.ControlResult{}, false
 }
+
+func TestReplayRefreshesSuppressedDispositionAfterEarlierPhaseAddsRequirement(t *testing.T) {
+	scenario := engine.Scenario{
+		ID: "phase-refresh",
+		InitialFacts: []string{
+			"review:unavailable",
+		},
+		Events: []engine.Event{
+			{
+				ID: "suspicious-action",
+			},
+		},
+	}
+
+	controls := []engine.Control{
+		engine.EventControl{
+			ID:       "detector",
+			EventIDs: []string{"suspicious-action"},
+			Action:   engine.ActionObserve,
+			Effects: []engine.Effect{
+				{
+					Fact: "alert:suspicious-action",
+					Op:   engine.EffectAdd,
+				},
+			},
+		},
+		engine.EventControl{
+			ID:       "reviewer",
+			EventIDs: []string{"suspicious-action"},
+			Requires: []engine.Condition{
+				{
+					Fact: "alert:suspicious-action",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			SuppressedBy: []engine.Condition{
+				{
+					Fact: "review:unavailable",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			Action: engine.ActionReview,
+		},
+	}
+
+	result := engine.Replay(scenario, controls...)
+
+	entry := result.Trace[0]
+
+	var reviewer engine.ControlResult
+	found := false
+
+	for _, control := range entry.Controls {
+		if control.ControlID == "reviewer" {
+			reviewer = control
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("reviewer result not found")
+	}
+
+	if reviewer.Disposition != engine.DispositionSuppressed {
+		t.Fatalf(
+			"reviewer disposition = %q, want suppressed",
+			reviewer.Disposition,
+		)
+	}
+
+	if reviewer.Action != engine.ActionNone {
+		t.Fatalf(
+			"suppressed reviewer action = %q, want none",
+			reviewer.Action,
+		)
+	}
+
+	if reviewer.Acted {
+		t.Fatalf(
+			"reviewer acted while suppressed: %+v",
+			reviewer,
+		)
+	}
+}

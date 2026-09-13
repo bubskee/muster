@@ -27,7 +27,27 @@ func evaluateAction(
 	for _, control := range controls {
 		result := control.Evaluate(event, current)
 
-		if !result.Matched || result.Action != action {
+		if !result.Matched {
+			continue
+		}
+
+		phase := result.Action
+
+		if phased, ok := control.(interface {
+			Phase() ControlAction
+		}); ok {
+			phase = phased.Phase()
+		}
+
+		if phase != action {
+			continue
+		}
+
+		// Record the current disposition for this phase even when
+		// the control cannot act. Earlier phases may have changed
+		// its prerequisites since the initial trace snapshot.
+		if result.Disposition != DispositionReady {
+			results = append(results, result)
 			continue
 		}
 
