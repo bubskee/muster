@@ -337,3 +337,158 @@ func TestReserveRespondsAfterEvent(t *testing.T) {
 		)
 	}
 }
+
+func TestObservationCanEnableResponse(t *testing.T) {
+	scenario := engine.Scenario{
+		ID: "observation-response-path",
+		Events: []engine.Event{
+			{
+				ID: "credential-access",
+				Effects: []engine.Effect{
+					{
+						Fact: "credential:k8s-service-account",
+						Op:   engine.EffectAdd,
+					},
+				},
+			},
+		},
+	}
+
+	controls := []engine.Control{
+		engine.EventControl{
+			ID:       "credential-detector",
+			Role:     engine.Vedette,
+			EventIDs: []string{"credential-access"},
+			Action:   engine.ActionObserve,
+			Effects: []engine.Effect{
+				{
+					Fact: "alert:credential-access",
+					Op:   engine.EffectAdd,
+				},
+			},
+		},
+		engine.EventControl{
+			ID:       "soc-review",
+			EventIDs: []string{"credential-access"},
+			Requires: []engine.Condition{
+				{
+					Fact: "alert:credential-access",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			Action: engine.ActionReview,
+			Effects: []engine.Effect{
+				{
+					Fact: "reviewed:credential-access",
+					Op:   engine.EffectAdd,
+				},
+			},
+		},
+		engine.EventControl{
+			ID:       "criticality-check",
+			EventIDs: []string{"credential-access"},
+			Requires: []engine.Condition{
+				{
+					Fact: "reviewed:credential-access",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			Action: engine.ActionCritical,
+			Effects: []engine.Effect{
+				{
+					Fact: "critical:credential-access",
+					Op:   engine.EffectAdd,
+				},
+			},
+		},
+		engine.EventControl{
+			ID:       "page-oncall",
+			EventIDs: []string{"credential-access"},
+			Requires: []engine.Condition{
+				{
+					Fact: "critical:credential-access",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			Action: engine.ActionEscalate,
+			Effects: []engine.Effect{
+				{
+					Fact: "escalated:credential-access",
+					Op:   engine.EffectAdd,
+				},
+			},
+		},
+		engine.EventControl{
+			ID:       "credential-revocation",
+			Role:     engine.Reserve,
+			EventIDs: []string{"credential-access"},
+			Requires: []engine.Condition{
+				{
+					Fact: "escalated:credential-access",
+					Op:   engine.ConditionPresent,
+				},
+			},
+			Action: engine.ActionRespond,
+			Effects: []engine.Effect{
+				{
+					Fact: "credential:k8s-service-account",
+					Op:   engine.EffectRemove,
+				},
+			},
+		},
+	}
+
+	result := engine.Replay(scenario, controls...)
+
+	if hasFact(result.TerminalState, "credential:k8s-service-account") {
+		t.Fatalf(
+			"credential remained after response: %v",
+			result.TerminalState,
+		)
+	}
+
+	for _, fact := range []string{
+		"alert:credential-access",
+		"reviewed:credential-access",
+		"critical:credential-access",
+		"escalated:credential-access",
+	} {
+		if !hasFact(result.TerminalState, fact) {
+			t.Fatalf(
+				"terminal state missing %q: %v",
+				fact,
+				result.TerminalState,
+			)
+		}
+	}
+
+	if len(result.Trace) != 1 {
+		t.Fatalf("trace length = %d, want 1", len(result.Trace))
+	}
+
+	entry := result.Trace[0]
+
+	if len(entry.RespondedBy) != 1 {
+		t.Fatalf(
+			"responded by = %v, want one reserve",
+			entry.RespondedBy,
+		)
+	}
+
+	if entry.RespondedBy[0] != "credential-revocation" {
+		t.Fatalf(
+			"responded by = %q, want credential-revocation",
+			entry.RespondedBy[0],
+		)
+	}
+}
+
+func hasFact(facts []string, want string) bool {
+	for _, fact := range facts {
+		if fact == want {
+			return true
+		}
+	}
+
+	return false
+}

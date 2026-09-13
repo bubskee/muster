@@ -16,6 +16,11 @@ const (
 	ActionNone    ControlAction = "none"
 	ActionObserve ControlAction = "observe"
 	ActionBlock   ControlAction = "block"
+
+	ActionReview   ControlAction = "review"
+	ActionCritical ControlAction = "critical"
+	ActionEscalate ControlAction = "escalate"
+
 	ActionRespond ControlAction = "respond"
 )
 
@@ -39,21 +44,31 @@ type EventControl struct {
 	Role     Role
 	EventIDs []string
 
+	// Conditions that must hold for this control to act.
+	Requires []Condition
+
 	Action  ControlAction
 	Effects []Effect
 }
 
-func (c EventControl) Evaluate(event Event, _ *state.State) ControlResult {
+func (c EventControl) Evaluate(event Event, s *state.State) ControlResult {
 	matched := c.matches(event)
 
 	result := ControlResult{
 		ControlID: c.ID,
 		Role:      c.Role,
 		Matched:   matched,
+		Action:    ActionNone,
 	}
 
 	if !matched {
 		return result
+	}
+
+	for _, condition := range c.Requires {
+		if !condition.SatisfiedBy(s) {
+			return result
+		}
 	}
 
 	result.Action = c.Action
@@ -70,4 +85,28 @@ func (c EventControl) matches(event Event) bool {
 	}
 
 	return false
+}
+
+func applyControls(
+	event Event,
+	current *state.State,
+	controls []Control,
+	action ControlAction,
+	entry *TraceEntry,
+) {
+	for _, control := range controls {
+		result := control.Evaluate(event, current)
+
+		if !result.Matched || result.Action != action {
+			continue
+		}
+
+		result.Acted = true
+
+		for _, effect := range result.Effects {
+			effect.Apply(current)
+		}
+
+		entry.Controls = append(entry.Controls, result)
+	}
 }
