@@ -1,0 +1,11 @@
+id: pypi-monitor-only
+controls:
+- id: detect-unexpected-internet
+  role: vedette
+  events:
+  - reach-public-internet
+  substrate: eval-network-telemetry
+  action: observe
+  effects:
+    add:
+    - alert:unexpected-internet

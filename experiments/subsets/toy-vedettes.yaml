@@ -1,0 +1,20 @@
+id: toy-vedettes
+controls:
+- id: worker-credential-theft
+  role: vedette
+  events:
+  - cluster-credential-theft
+  substrate: worker-telemetry
+  action: observe
+  effects:
+    add:
+    - alert:credential-theft
+- id: worker-k8s-discovery
+  role: vedette
+  events:
+  - kubernetes-api-discovery-from-worker
+  substrate: worker-telemetry
+  action: observe
+  effects:
+    add:
+    - alert:k8s-discovery

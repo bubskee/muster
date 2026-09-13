@@ -1,0 +1,8 @@
+id: pypi-vendor-sandbox
+controls:
+- id: isolate-scanner-credentials
+  role: picket
+  events:
+  - scanner-credential-exposure
+  substrate: scanner-sandbox
+  action: block

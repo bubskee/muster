@@ -1,0 +1,8 @@
+id: pypi-block-egress
+controls:
+- id: block-eval-internet
+  role: picket
+  events:
+  - reach-public-internet
+  substrate: eval-egress-policy
+  action: block

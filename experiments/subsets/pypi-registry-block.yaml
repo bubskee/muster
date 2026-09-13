@@ -1,0 +1,8 @@
+id: pypi-registry-block
+controls:
+- id: block-public-package-publish
+  role: picket
+  events:
+  - publish-malicious-package
+  substrate: registry-write-policy
+  action: block

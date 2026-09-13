@@ -1,0 +1,8 @@
+id: toy-picket
+controls:
+- id: block-privileged-workload
+  role: picket
+  events:
+  - privileged-workload-creation
+  substrate: kubernetes-admission
+  action: block

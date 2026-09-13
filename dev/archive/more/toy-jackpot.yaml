@@ -1,0 +1,29 @@
+# SUGGESTED (Josh/Claude draft): one-command reproduction of the toy progression
+# and the non-monotone interaction. Verify before committing.
+id: toy-jackpot-progression
+metrics:
+  - id: node-access
+    fact: attacker:node-access
+  - id: credential-held
+    fact: attacker:cluster-credential
+runs:
+  - id: none
+    label: No defense
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-none.yaml
+  - id: vedettes
+    label: Vedettes only
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-vedettes.yaml
+  - id: picket
+    label: Matched Picket
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-picket.yaml
+  - id: strong-brittle
+    label: V1+V2+R1 (revoke credential)
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-strong-brittle.yaml
+  - id: jackpot
+    label: V1+V2+R1+R2 (add early isolation)
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-jackpot.yaml

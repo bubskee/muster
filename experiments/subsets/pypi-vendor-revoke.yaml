@@ -1,0 +1,53 @@
+id: pypi-vendor-revoke
+controls:
+- id: detect-scanner-credential-exposure
+  role: vedette
+  events:
+  - scanner-credential-exposure
+  substrate: vendor-security-telemetry
+  action: observe
+  effects:
+    add:
+    - alert:vendor-credential-exposure
+- id: review-vendor-credential-exposure
+  events:
+  - scanner-credential-exposure
+  requires:
+    present:
+    - alert:vendor-credential-exposure
+  substrate: vendor-oncall
+  action: review
+  effects:
+    add:
+    - reviewed:vendor-credential-exposure
+- id: assess-vendor-credential-critical
+  events:
+  - scanner-credential-exposure
+  requires:
+    present:
+    - reviewed:vendor-credential-exposure
+  action: critical
+  effects:
+    add:
+    - critical:vendor-credential
+- id: escalate-vendor-credential-revocation
+  events:
+  - scanner-credential-exposure
+  requires:
+    present:
+    - critical:vendor-credential
+  action: escalate
+  effects:
+    add:
+    - escalated:vendor-credential-revocation
+- id: revoke-vendor-credential
+  role: reserve
+  events:
+  - scanner-credential-exposure
+  requires:
+    present:
+    - escalated:vendor-credential-revocation
+  action: respond
+  effects:
+    remove:
+    - attacker:vendor-credential
