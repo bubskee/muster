@@ -1,0 +1,63 @@
+# Counterfactual: the worker-compromise signal is correctly prioritized,
+# reaches on-call, and triggers worker isolation after the RCE event.
+# Review/critical/escalation are explanatory phases; Replay semantics remain
+# the same as in the rest of Muster.
+
+id: hf-page-and-isolate
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events:
+      - dataset-template-rce
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add:
+        - alert:worker-compromise
+
+  - id: review-worker-compromise
+    events:
+      - dataset-template-rce
+    requires:
+      present:
+        - alert:worker-compromise
+    substrate: soc-oncall
+    action: review
+    effects:
+      add:
+        - reviewed:worker-compromise
+
+  - id: assess-worker-compromise-critical
+    events:
+      - dataset-template-rce
+    requires:
+      present:
+        - reviewed:worker-compromise
+    action: critical
+    effects:
+      add:
+        - critical:worker-compromise
+
+  - id: escalate-worker-isolation
+    events:
+      - dataset-template-rce
+    requires:
+      present:
+        - critical:worker-compromise
+    action: escalate
+    effects:
+      add:
+        - escalated:worker-isolation
+
+  - id: isolate-worker
+    role: reserve
+    events:
+      - dataset-template-rce
+    requires:
+      present:
+        - escalated:worker-isolation
+    action: respond
+    effects:
+      remove:
+        - attacker:worker-access

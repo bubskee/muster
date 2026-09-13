@@ -1,0 +1,34 @@
+# Deliberately small counterfactual comparison over a compressed public-record
+# abstraction. These are illustrative defensive interventions, not claims
+# about what would certainly have happened in the real incident.
+
+id: hf-july-2026-counterfactuals
+
+metrics:
+  - id: node-root
+    fact: attacker:node-root
+  - id: internal-network
+    fact: attacker:internal-network-access
+  - id: cluster-admin
+    fact: attacker:cluster-admin
+
+runs:
+  - id: observed-no-page
+    label: Observed signal, no page
+    scenario: ../examples/hf-july-2026/scenario.yaml
+    controls: ../examples/hf-july-2026/observed-no-page.yaml
+
+  - id: admission-policy
+    label: Privileged/hostPath admission policy
+    scenario: ../examples/hf-july-2026/scenario.yaml
+    controls: ../examples/hf-july-2026/admission-policy.yaml
+
+  - id: connector-scope
+    label: Cluster-scoped connector identity
+    scenario: ../examples/hf-july-2026/scenario.yaml
+    controls: ../examples/hf-july-2026/connector-scope.yaml
+
+  - id: page-and-isolate
+    label: Critical page + worker isolation
+    scenario: ../examples/hf-july-2026/scenario.yaml
+    controls: ../examples/hf-july-2026/page-and-isolate.yaml

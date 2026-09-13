@@ -1,0 +1,23 @@
+# Counterfactual: reject the privileged hostPath pod described in the public
+# timeline. This blocks the node-root branch but intentionally does not block
+# the independent service-connector path.
+
+id: hf-admission-policy
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events:
+      - dataset-template-rce
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add:
+        - alert:worker-compromise
+
+  - id: reject-privileged-hostpath
+    role: picket
+    events:
+      - privileged-hostpath-pod
+    substrate: kubernetes-admission
+    action: block

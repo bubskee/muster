@@ -1,0 +1,16 @@
+# Illustrative abstraction of the disclosed detection failure mode:
+# signals become a coherent alert, but no critical page/response follows.
+# This does NOT claim to reconstruct Hugging Face's exact alert source.
+
+id: hf-observed-no-page
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events:
+      - dataset-template-rce
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add:
+        - alert:worker-compromise

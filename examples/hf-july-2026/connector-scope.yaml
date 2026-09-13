@@ -1,0 +1,23 @@
+# Counterfactual: a stolen connector credential is scoped so it cannot be
+# replayed as cluster-admin across clusters. This blocks the connector branch
+# but intentionally leaves the privileged-pod/node-root branch intact.
+
+id: hf-connector-scope
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events:
+      - dataset-template-rce
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add:
+        - alert:worker-compromise
+
+  - id: reject-cross-cluster-connector-replay
+    role: picket
+    events:
+      - shared-connector-credential-replay
+    substrate: connector-authz
+    action: block
