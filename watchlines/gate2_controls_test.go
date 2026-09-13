@@ -697,3 +697,229 @@ func gate2SameFacts(a, b []string) bool {
 
 	return true
 }
+
+func gate2CollapsedCredentialAlertResponse() engine.EventControl {
+	return engine.EventControl{
+		ID:       "collapsed-response-credential-alert",
+		Role:     engine.Reserve,
+		EventIDs: []string{scenarios.EventGate2K8sDiscovery},
+		Requires: []engine.Condition{
+			{
+				Fact: Gate2AlertCredentialTheft,
+				Op:   engine.ConditionPresent,
+			},
+			{
+				Fact: scenarios.FactGate2ClusterCredential,
+				Op:   engine.ConditionPresent,
+			},
+		},
+		Action: engine.ActionRespond,
+		Effects: []engine.Effect{
+			{
+				Fact: scenarios.FactGate2ClusterCredential,
+				Op:   engine.EffectRemove,
+			},
+		},
+	}
+}
+
+func gate2CollapsedK8sAlertResponse() engine.EventControl {
+	return engine.EventControl{
+		ID:       "collapsed-response-k8s-alert",
+		Role:     engine.Reserve,
+		EventIDs: []string{scenarios.EventGate2K8sDiscovery},
+		Requires: []engine.Condition{
+			{
+				Fact: Gate2AlertK8sDiscovery,
+				Op:   engine.ConditionPresent,
+			},
+			{
+				Fact: scenarios.FactGate2ClusterCredential,
+				Op:   engine.ConditionPresent,
+			},
+		},
+		Action: engine.ActionRespond,
+		Effects: []engine.Effect{
+			{
+				Fact: scenarios.FactGate2ClusterCredential,
+				Op:   engine.EffectRemove,
+			},
+		},
+	}
+}
+
+func gate2BroadCorrelatedCollapsedPipeline() []engine.Control {
+	return []engine.Control{
+		Gate2V1CredentialTheft(),
+		Gate2V2WorkerK8sDiscovery(),
+
+		gate2CollapsedCredentialAlertResponse(),
+		gate2CollapsedK8sAlertResponse(),
+	}
+}
+
+func gate2NarrowDiverseCollapsedPipeline() []engine.Control {
+	return []engine.Control{
+		Gate2V2WorkerK8sDiscovery(),
+		Gate2V3K8sAuditDiscovery(),
+
+		gate2CollapsedCredentialAlertResponse(),
+		gate2CollapsedK8sAlertResponse(),
+	}
+}
+
+func TestGate2PipelineCollapsePreservesObservationBudgetOutcomes(t *testing.T) {
+	tests := []struct {
+		name      string
+		scenario  engine.Scenario
+		full      []engine.Control
+		collapsed []engine.Control
+	}{
+		{
+			name:      "broad-none",
+			scenario:  scenarios.Gate2NoFailure(),
+			full:      Gate2BroadCorrelated(),
+			collapsed: gate2BroadCorrelatedCollapsedPipeline(),
+		},
+		{
+			name:      "broad-early",
+			scenario:  scenarios.Gate2EarlyFailure(),
+			full:      Gate2BroadCorrelated(),
+			collapsed: gate2BroadCorrelatedCollapsedPipeline(),
+		},
+		{
+			name:      "broad-between",
+			scenario:  scenarios.Gate2BetweenFailure(),
+			full:      Gate2BroadCorrelated(),
+			collapsed: gate2BroadCorrelatedCollapsedPipeline(),
+		},
+		{
+			name:      "diverse-none",
+			scenario:  scenarios.Gate2NoFailure(),
+			full:      Gate2NarrowDiverse(),
+			collapsed: gate2NarrowDiverseCollapsedPipeline(),
+		},
+		{
+			name:      "diverse-early",
+			scenario:  scenarios.Gate2EarlyFailure(),
+			full:      Gate2NarrowDiverse(),
+			collapsed: gate2NarrowDiverseCollapsedPipeline(),
+		},
+		{
+			name:      "diverse-between",
+			scenario:  scenarios.Gate2BetweenFailure(),
+			full:      Gate2NarrowDiverse(),
+			collapsed: gate2NarrowDiverseCollapsedPipeline(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			full := engine.Replay(
+				tt.scenario,
+				tt.full...,
+			)
+
+			collapsed := engine.Replay(
+				tt.scenario,
+				tt.collapsed...,
+			)
+
+			fullNode := gate2ContainsFact(
+				full.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			collapsedNode := gate2ContainsFact(
+				collapsed.TerminalState,
+				scenarios.FactGate2NodeAccess,
+			)
+
+			if fullNode != collapsedNode {
+				t.Fatalf(
+					"pipeline collapse changed terminal outcome: full=%v collapsed=%v\nfull-state=%v\ncollapsed-state=%v",
+					fullNode,
+					collapsedNode,
+					full.TerminalState,
+					collapsed.TerminalState,
+				)
+			}
+		})
+	}
+}
+
+func gate2CollapsedFullResponseWithoutPrematureContainment() []engine.Control {
+	return []engine.Control{
+		Gate2V1CredentialTheft(),
+		Gate2V2WorkerK8sDiscovery(),
+		gate2CollapsedK8sAlertResponse(),
+	}
+}
+
+func gate2CollapsedFullResponseWithPrematureContainment() []engine.Control {
+	controls := gate2CollapsedFullResponseWithoutPrematureContainment()
+
+	return append(
+		controls,
+		Gate2L1WorkerContainmentEscalation(),
+		Gate2R2IsolateWorker(),
+	)
+}
+
+func TestGate2PipelineCollapsePreservesPrematureContainmentNonMonotonicity(t *testing.T) {
+	fullWithout := engine.Replay(
+		scenarios.Gate2NoFailure(),
+		Gate2FullResponseWithoutPrematureContainment()...,
+	)
+
+	fullWith := engine.Replay(
+		scenarios.Gate2NoFailure(),
+		Gate2FullResponseWithPrematureContainment()...,
+	)
+
+	collapsedWithout := engine.Replay(
+		scenarios.Gate2NoFailure(),
+		gate2CollapsedFullResponseWithoutPrematureContainment()...,
+	)
+
+	collapsedWith := engine.Replay(
+		scenarios.Gate2NoFailure(),
+		gate2CollapsedFullResponseWithPrematureContainment()...,
+	)
+
+	fullWithoutNode := gate2ContainsFact(
+		fullWithout.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	fullWithNode := gate2ContainsFact(
+		fullWith.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	collapsedWithoutNode := gate2ContainsFact(
+		collapsedWithout.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	collapsedWithNode := gate2ContainsFact(
+		collapsedWith.TerminalState,
+		scenarios.FactGate2NodeAccess,
+	)
+
+	if fullWithoutNode || collapsedWithoutNode {
+		t.Fatalf(
+			"baseline should remain secure: full=%v collapsed=%v",
+			fullWithout.TerminalState,
+			collapsedWithout.TerminalState,
+		)
+	}
+
+	if !fullWithNode || !collapsedWithNode {
+		t.Fatalf(
+			"premature-containment arm should remain adverse: full=%v collapsed=%v",
+			fullWith.TerminalState,
+			collapsedWith.TerminalState,
+		)
+	}
+}
