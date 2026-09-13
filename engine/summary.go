@@ -1,15 +1,22 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type RunSummary struct {
 	ScenarioID string
 
-	FurthestEvent    string
+	FurthestApplied   string
+	FurthestAttempted string
+
 	FirstObservation string
 	FirstBlock       string
 
-	EventsAfterDetection int
+	// Nil means the incident was never observed.
+	// A pointer to 0 means it was observed, but no later events succeeded.
+	EventsAfterDetection *int
 
 	TerminalState []string
 }
@@ -23,8 +30,14 @@ func Summarize(result RunResult) RunSummary {
 	firstObservedIndex := -1
 
 	for i, entry := range result.Trace {
-		if entry.Status == EventApplied || entry.Status == EventBlocked {
-			summary.FurthestEvent = entry.EventID
+		switch entry.Status {
+		case EventApplied:
+			summary.FurthestApplied = entry.EventID
+			summary.FurthestAttempted = entry.EventID
+
+		case EventBlocked:
+			// The event was attempted but did not occur.
+			summary.FurthestAttempted = entry.EventID
 		}
 
 		if summary.FirstObservation == "" && len(entry.ObservedBy) > 0 {
@@ -38,26 +51,40 @@ func Summarize(result RunResult) RunSummary {
 	}
 
 	if firstObservedIndex >= 0 {
-		summary.EventsAfterDetection =
-			len(result.Trace) - firstObservedIndex - 1
+		count := 0
+
+		for _, entry := range result.Trace[firstObservedIndex+1:] {
+			if entry.Status == EventApplied {
+				count++
+			}
+		}
+
+		summary.EventsAfterDetection = &count
 	}
 
 	return summary
 }
 
 func (s RunSummary) String() string {
+	eventsAfterDetection := "n/a"
+	if s.EventsAfterDetection != nil {
+		eventsAfterDetection = fmt.Sprintf("%d", *s.EventsAfterDetection)
+	}
+
 	return fmt.Sprintf(
 		"scenario: %s\n"+
-			"furthest_event: %s\n"+
+			"furthest_applied: %s\n"+
+			"furthest_attempted: %s\n"+
 			"first_observation: %s\n"+
 			"first_block: %s\n"+
-			"events_after_detection: %d\n"+
-			"terminal_state: %v\n",
+			"events_after_detection: %s\n"+
+			"terminal_state: [%s]\n",
 		s.ScenarioID,
-		s.FurthestEvent,
+		s.FurthestApplied,
+		s.FurthestAttempted,
 		s.FirstObservation,
 		s.FirstBlock,
-		s.EventsAfterDetection,
-		s.TerminalState,
+		eventsAfterDetection,
+		strings.Join(s.TerminalState, ", "),
 	)
 }
