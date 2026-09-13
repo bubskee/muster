@@ -8,7 +8,7 @@ The current `hf-worker-to-node` fixture is a linear chain. In that fixture:
 
 - the Vedette-only result is tautological because observation is causally inert;
 - defensive outcomes collapse largely to the location of the earliest blocking Picket;
-- the terminal summary contains fields that are currently misleading;
+- the terminal summary contains fields that are currently misleading;∂
 - the Hugging Face case is a poor fit for a simple "detection worked, prevention failed" story.
 
 Before expanding Muster, test a narrower and more falsifiable hypothesis:
