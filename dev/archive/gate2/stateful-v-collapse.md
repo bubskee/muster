@@ -932,3 +932,430 @@ KEEP TINY
 The purpose of Gate 2 is not to prove that Muster works.
 
 The purpose is to determine whether Muster is doing work.
+
+---
+
+# Gate 2 Addendum — Evidence Levels and Survival Criterion
+
+## Status
+
+**INTERPRETATION ADDENDUM**
+
+This addendum changes **no frozen experimental design**.
+
+The following remain frozen exactly as previously specified:
+
+```text
+incident micro
+control pool
+control semantics
+substrate assignments
+budgets
+2A / 2B / conditional 2C matrices
+failure treatments
+static-null predictions
+memoryless/static comparisons
+anti-cherry-picking rules
+no-post-hoc-feature-rescue rule
+```
+
+This addendum changes only:
+
+> **how Gate 2 evidence is interpreted when deciding whether Muster should remain a tiny supporting artifact.**
+
+---
+
+# Why this addendum exists
+
+The previous Gate 2 wording implicitly raised the survival bar from:
+
+> Does Muster provide enough analytical or representational value to justify remaining a tiny executable artifact in the Watchline paper?
+
+to something closer to:
+
+> Can Muster demonstrate a phenomenon that a sufficiently enriched static formalism cannot represent?
+
+That is unnecessarily strong.
+
+Muster is not currently claiming to establish a formally novel class of security analysis.
+
+It is a small executable incident-counterfactual harness.
+
+A deterministic replay engine being predictable by hand is not evidence against it.
+
+Likewise, the fact that a sufficiently expanded graph, dynamic fault tree, Petri net, or other formalism could encode the same behavior does not by itself imply that Muster should collapse.
+
+The relevant comparison includes:
+
+```text
+expressiveness
+representation size
+clarity
+incident-native semantics
+ease of counterfactual modification
+traceability
+reusability
+```
+
+not merely formal representability.
+
+---
+
+# The static null remains
+
+The static causal-pruning baseline remains mandatory.
+
+Predictions must still be written before execution.
+
+Agreement between Muster and the static null must **not** be described as a novel causal discovery.
+
+However:
+
+> Agreement with the static null no longer implies automatic COLLAPSE.
+
+Instead, agreement determines the strength of the claim Muster is entitled to make.
+
+---
+
+# Evidence Level 1 — SUPPORTING ARTIFACT
+
+Muster earns this level if:
+
+* the static baseline predicts the headline terminal outcome;
+* the experiment behaves as preregistered;
+* Muster makes the defensive chain concretely executable;
+* the trace clearly exposes distinctions such as:
+
+```text
+observed
+reviewed
+under-prioritized
+escalated
+responded
+suppressed
+waiting
+```
+
+* Watchline compositions can be changed and replayed without rebuilding an ad hoc analysis;
+* the executable representation is useful enough that we would plausibly retain or reuse it.
+
+At this level, Muster may support claims such as:
+
+> Muster provides a compact executable representation for Watchline counterfactuals and shared defensive dependencies.
+
+It may **not** claim:
+
+> Stateful replay was necessary to obtain the result.
+
+This level is sufficient for Muster to remain in the sprint paper as a **tiny supporting artifact**.
+
+---
+
+# Evidence Level 2 — REPLAY EARNED
+
+Muster reaches this level if persistent defensive history becomes genuinely load-bearing.
+
+The clearest preregistered example is the history-equivalence challenge.
+
+Suppose two executions reach a checkpoint with:
+
+```text
+same reached incident events
+same attacker capabilities
+same current substrate availability
+same defensive composition
+```
+
+but possess different defensive state because their histories differed.
+
+For example:
+
+```text
+History A:
+    credential alert emitted
+    telemetry later lost
+    persisted alert remains reviewable
+
+History B:
+    telemetry lost
+    credential theft occurs afterward
+    no alert ever existed
+```
+
+If those histories later produce different defensive behavior or terminal outcomes because of the persisted fact:
+
+```text
+alert:credential-theft
+```
+
+then stateful replay is doing causal work beyond the chosen static baseline.
+
+At this level, Muster may support the stronger claim:
+
+> Persistent defender state was load-bearing in the micro.
+
+This is stronger evidence for retaining the replay abstraction.
+
+---
+
+# Evidence Level 3 — JACKPOT
+
+The following are especially strong but **not required**:
+
+```text
+a functioning control worsens terminal security
+an A/B ranking unexpectedly reverses
+the preregistered static baseline predicts the wrong substantive outcome
+an interaction emerges that was not apparent from the authored dependencies
+```
+
+A non-monotonic defensive result such as:
+
+```text
+working early detector
+→ partial containment
+→ later evidence opportunity removed
+→ stronger response never triggers
+→ worse terminal outcome
+```
+
+is particularly interesting.
+
+However:
+
+> Non-monotonicity is bonus evidence, not a mandatory entrance requirement.
+
+Its absence does not imply that replay has no value.
+
+History dependence and monotonicity are separate properties.
+
+---
+
+# Revised COLLAPSE criterion
+
+Choose:
+
+```text
+COLLAPSE
+```
+
+only if, after running the frozen experiment, Muster contributes neither:
+
+```text
+load-bearing stateful insight
+```
+
+nor:
+
+```text
+useful executable / representational leverage
+```
+
+over the simpler treatment.
+
+Concretely, collapse if the final assessment is:
+
+> The table, Attack Flow, dependency graph, or tiny static evaluator is clearer, easier to reason about, and sufficient for the counterfactual work we actually want to perform.
+
+and:
+
+> We would not choose to reuse Muster for this sort of analysis.
+
+That is the relevant project-level falsifier.
+
+---
+
+# Revised KEEP TINY criterion
+
+Choose:
+
+```text
+KEEP TINY
+```
+
+if either of the following is true.
+
+## A. Supporting-artifact survival
+
+The static analysis predicts the result, but Muster provides enough executable structure, trace clarity, and counterfactual convenience to justify remaining a small artifact accompanying Watchline.
+
+Claim strength remains modest.
+
+## B. Replay-earned survival
+
+Persistent defender history materially changes what later controls can do or changes the resulting trajectory.
+
+In that case the replay abstraction has stronger causal justification.
+
+---
+
+# What remains evidence against Muster
+
+This addendum does **not** make the gate permissive about implementation growth.
+
+The following remain negative evidence:
+
+```text
+needing new engine features after seeing weak results
+changing the frozen incident to manufacture an interaction
+changing control semantics after observing outputs
+adding realism solely to rescue the replay claim
+hand-selecting only favorable compositions
+hiding disagreement with the static null
+```
+
+The containment rule remains:
+
+> A missing feature is not automatically permission to add that feature.
+
+---
+
+# Interpretation of 2A
+
+Gate 2A should primarily be interpreted as a:
+
+```text
+history + dependency experiment
+```
+
+rather than requiring a dramatic resource-allocation crossover.
+
+Its strongest preregistered comparison is:
+
+```text
+EARLY telemetry failure
+vs
+BETWEEN telemetry failure
+```
+
+where the incident/world checkpoint may become equivalent while defensive history differs.
+
+If a persisted earlier alert changes later review or response, that is meaningful replay evidence even if the outcome was predictable by careful hand analysis.
+
+Predictability does not make the state distinction unreal.
+
+---
+
+# Interpretation of 2B
+
+Gate 2B is principally a:
+
+```text
+review-path / failure-domain mechanism fixture
+```
+
+The human and agent reviewers are intentionally identical except for operational dependency.
+
+Therefore a result equivalent to:
+
+```text
+independent review path survives independent failure
+```
+
+should not be treated as evidence of replay necessity.
+
+Its value is to make the HF-relevant distinction between:
+
+```text
+signal exists
+```
+
+and:
+
+```text
+signal is meaningfully consumed / escalated
+```
+
+executable and inspectable.
+
+---
+
+# Interpretation of the non-monotonicity fixture
+
+The non-monotonicity fixture remains frozen and should still be run.
+
+Its role changes from:
+
+```text
+mandatory survival test
+```
+
+to:
+
+```text
+high-value adversarial challenge
+```
+
+If it succeeds, the result is unusually strong.
+
+If it fails, Muster is not automatically rejected.
+
+---
+
+# Gate 2 final questions
+
+At the end of Gate 2, answer:
+
+```text
+1. What did the static baseline predict?
+
+2. Did Muster agree?
+
+3. What did executable replay make clearer or easier to inspect?
+
+4. Did persistent defender history become load-bearing?
+
+5. Did the memoryless/static treatment lose any meaningful distinction?
+
+6. Did any non-monotonic or unexpected interaction appear?
+
+7. Would we choose Muster over the static representation for the next similar counterfactual?
+
+8. What is the strongest claim actually supported by the evidence?
+```
+
+Then classify the result as:
+
+```text
+COLLAPSE
+
+SUPPORTING ARTIFACT
+
+REPLAY EARNED
+
+JACKPOT
+```
+
+For project continuation:
+
+```text
+COLLAPSE
+```
+
+means stop.
+
+Any of:
+
+```text
+SUPPORTING ARTIFACT
+REPLAY EARNED
+JACKPOT
+```
+
+maps to:
+
+```text
+KEEP TINY
+```
+
+for this sprint.
+
+No Gate 2 result authorizes unrestricted expansion.
+
+---
+
+# Final principle
+
+Muster does not have to prove that attack graphs, fault trees, or other formalisms are incapable of representing the same incident.
+
+It has to justify why we bothered to make the argument executable.
