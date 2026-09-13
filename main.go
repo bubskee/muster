@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/bubskee/muster/config"
 	"github.com/bubskee/muster/engine"
@@ -48,6 +50,11 @@ func replay(args []string) error {
 
 	scenarioPath := flags.String("scenario", "", "scenario YAML file")
 	controlsPath := flags.String("controls", "", "control-set YAML file")
+	onlyControls := flags.String(
+		"only-controls",
+		"",
+		"comma-separated control IDs to enable; empty means all controls",
+	)
 	asJSON := flags.Bool("json", false, "emit replay result as JSON")
 
 	if err := flags.Parse(args); err != nil {
@@ -67,25 +74,100 @@ func replay(args []string) error {
 	if err != nil {
 		return err
 	}
-	controls, err := config.LoadControlSet(*controlsPath)
+	controlSet, err := config.LoadControlSet(*controlsPath)
 	if err != nil {
 		return err
 	}
 
-	result := engine.Replay(scenario, controls.Controls...)
+	selected, err := selectControls(controlSet.Controls, *onlyControls)
+	if err != nil {
+		return err
+	}
+
+	result := engine.Replay(scenario, selected...)
 
 	if *asJSON {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(replayOutput{
-			ControlSetID: controls.ID,
+			ControlSetID: controlSet.ID,
 			Result:       result,
 		})
 	}
 
-	fmt.Printf("control_set: %s\n", controls.ID)
+	fmt.Printf("control_set: %s\n", controlSet.ID)
+	if strings.TrimSpace(*onlyControls) != "" {
+		fmt.Printf("enabled_controls: %s\n", strings.Join(controlIDs(selected), ","))
+	}
 	fmt.Print(engine.Summarize(result).String())
 	return nil
+}
+
+func selectControls(controls []engine.Control, raw string) ([]engine.Control, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return append([]engine.Control(nil), controls...), nil
+	}
+
+	wanted := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		id := strings.TrimSpace(part)
+		if id == "" {
+			return nil, fmt.Errorf("--only-controls contains an empty control id")
+		}
+		if _, exists := wanted[id]; exists {
+			return nil, fmt.Errorf("duplicate control id %q in --only-controls", id)
+		}
+		wanted[id] = struct{}{}
+	}
+
+	selected := make([]engine.Control, 0, len(wanted))
+	found := make(map[string]struct{}, len(wanted))
+
+	for _, control := range controls {
+		id, ok := controlID(control)
+		if !ok {
+			return nil, fmt.Errorf("control %T does not expose an EventControl id", control)
+		}
+		if _, enabled := wanted[id]; enabled {
+			selected = append(selected, control)
+			found[id] = struct{}{}
+		}
+	}
+
+	var missing []string
+	for id := range wanted {
+		if _, ok := found[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return nil, fmt.Errorf("unknown control id(s): %s", strings.Join(missing, ", "))
+	}
+
+	return selected, nil
+}
+
+func controlID(control engine.Control) (string, bool) {
+	switch c := control.(type) {
+	case engine.EventControl:
+		return c.ID, c.ID != ""
+	case *engine.EventControl:
+		return c.ID, c.ID != ""
+	default:
+		return "", false
+	}
+}
+
+func controlIDs(controls []engine.Control) []string {
+	ids := make([]string, 0, len(controls))
+	for _, control := range controls {
+		if id, ok := controlID(control); ok {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func runExperiment(args []string) error {
@@ -126,12 +208,11 @@ func runExperiment(args []string) error {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  muster replay --scenario SCENARIO.yaml --controls CONTROLS.yaml [--json]
+  muster replay --scenario SCENARIO.yaml --controls CONTROLS.yaml [--only-controls ID,ID,...] [--json]
   muster experiment --file EXPERIMENT.yaml [--format markdown|json|csv]
 
 examples:
   muster replay --scenario examples/gate2-between.yaml --controls examples/gate2-broad-correlated.yaml
-  muster replay --scenario examples/gate2-between.yaml --controls examples/gate2-broad-correlated.yaml --json
-  muster experiment --file experiments/hf-july-2026.yaml
-  muster experiment --file experiments/hf-july-2026.yaml --format json`)
+  muster replay --scenario examples/notebook/toy-jackpot.yaml --controls examples/notebook/toy-controls.yaml --only-controls worker-credential-theft,worker-k8s-discovery,revoke-cluster-credential --json
+  muster experiment --file experiments/hf-july-2026.yaml`)
 }

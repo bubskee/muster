@@ -1,0 +1,85 @@
+# Full control pool for the notebook toy.
+# The notebook selects subsets with `muster replay --only-controls`.
+id: notebook-toy-controls
+
+controls:
+  - id: worker-credential-theft
+    role: vedette
+    events: [cluster-credential-theft]
+    substrate: worker-telemetry
+    action: observe
+    effects:
+      add: [alert:credential-theft]
+
+  - id: worker-k8s-discovery
+    role: vedette
+    events: [kubernetes-api-discovery-from-worker]
+    substrate: worker-telemetry
+    action: observe
+    effects:
+      add: [alert:k8s-discovery]
+
+  - id: block-credential-replay
+    role: picket
+    events: [stolen-credential-replay]
+    substrate: credential-authz
+    action: block
+
+  - id: block-privileged-workload
+    role: picket
+    events: [privileged-workload-creation]
+    substrate: kubernetes-admission
+    action: block
+
+  - id: review-k8s-discovery
+    events: [kubernetes-api-discovery-from-worker]
+    requires:
+      present: [alert:k8s-discovery]
+    substrate: soc-queue
+    action: review
+    effects:
+      add: [reviewed:cluster-integrity]
+
+  - id: assess-cluster-integrity
+    events: [kubernetes-api-discovery-from-worker]
+    requires:
+      present:
+        - reviewed:cluster-integrity
+        - attacker:cluster-credential
+    action: critical
+    effects:
+      add: [critical:cluster-integrity]
+
+  - id: escalate-cluster-integrity
+    events: [kubernetes-api-discovery-from-worker]
+    requires:
+      present: [critical:cluster-integrity]
+    action: escalate
+    effects:
+      add: [escalated:cluster-integrity]
+
+  - id: revoke-cluster-credential
+    role: reserve
+    events: [kubernetes-api-discovery-from-worker]
+    requires:
+      present: [escalated:cluster-integrity]
+    action: respond
+    effects:
+      remove: [attacker:cluster-credential]
+
+  - id: escalate-worker-containment
+    events: [cluster-credential-theft]
+    requires:
+      present: [alert:credential-theft]
+    action: escalate
+    effects:
+      add: [escalated:worker-containment]
+
+  - id: isolate-worker
+    role: reserve
+    events: [cluster-credential-theft]
+    requires:
+      present: [escalated:worker-containment]
+    action: respond
+    effects:
+      remove: [attacker:worker-access]
