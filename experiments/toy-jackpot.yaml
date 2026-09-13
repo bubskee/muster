@@ -1,5 +1,3 @@
-# SUGGESTED (Josh/Claude draft): one-command reproduction of the toy progression
-# and the non-monotone interaction. Verify before committing.
 id: toy-jackpot-progression
 metrics:
   - id: node-access

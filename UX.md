@@ -31,13 +31,4 @@ No artificial budget. The interactive control pool exposes:
 
 ## Boundary
 
-Python selects control IDs and renders JSON from the Go CLI.
-Python never evaluates event/control semantics.
-
-## Next increments after co-author feedback
-
-1. More visual role badges / stronger hierarchy.
-2. Explicit “why reachable?” inspector using returned preconditions.
-3. Side-by-side state-fact diff at first divergence.
-4. Provenance labels for HF events.
-5. One-click paper-figure export.
+Python does not decide replay semantics; it selects controls and presents returned traces.

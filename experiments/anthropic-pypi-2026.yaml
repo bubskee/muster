@@ -1,4 +1,3 @@
-# SUGGESTED (Josh/Claude draft): one-command reproduction of the cross-owner table.
 id: anthropic-pypi-2026-owners
 metrics:
   # Note: public:malicious-package is removed by the final registry-removes-package
