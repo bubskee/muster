@@ -192,5 +192,7 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 		result.Trace = append(result.Trace, entry)
 	}
 
+	result.TerminalState = current.Facts()
+
 	return result
 }

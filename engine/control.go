@@ -86,27 +86,3 @@ func (c EventControl) matches(event Event) bool {
 
 	return false
 }
-
-func applyControls(
-	event Event,
-	current *state.State,
-	controls []Control,
-	action ControlAction,
-	entry *TraceEntry,
-) {
-	for _, control := range controls {
-		result := control.Evaluate(event, current)
-
-		if !result.Matched || result.Action != action {
-			continue
-		}
-
-		result.Acted = true
-
-		for _, effect := range result.Effects {
-			effect.Apply(current)
-		}
-
-		entry.Controls = append(entry.Controls, result)
-	}
-}
