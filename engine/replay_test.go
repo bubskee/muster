@@ -468,18 +468,21 @@ func TestObservationCanEnableResponse(t *testing.T) {
 
 	entry := result.Trace[0]
 
-	if len(entry.RespondedBy) != 1 {
+	review, ok := findControl(entry.Controls, "soc-review")
+	if !ok {
+		t.Fatal("soc-review missing from control trace")
+	}
+
+	if review.Disposition != engine.DispositionReady {
 		t.Fatalf(
-			"responded by = %v, want one reserve",
-			entry.RespondedBy,
+			"soc-review disposition = %q, want %q",
+			review.Disposition,
+			engine.DispositionReady,
 		)
 	}
 
-	if entry.RespondedBy[0] != "credential-revocation" {
-		t.Fatalf(
-			"responded by = %q, want credential-revocation",
-			entry.RespondedBy[0],
-		)
+	if !review.Acted {
+		t.Fatal("soc-review was ready but did not act")
 	}
 }
 
@@ -491,4 +494,17 @@ func hasFact(facts []string, want string) bool {
 	}
 
 	return false
+}
+
+func findControl(
+	results []engine.ControlResult,
+	id string,
+) (engine.ControlResult, bool) {
+	for _, result := range results {
+		if result.ControlID == id {
+			return result, true
+		}
+	}
+
+	return engine.ControlResult{}, false
 }

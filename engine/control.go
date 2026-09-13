@@ -24,10 +24,21 @@ const (
 	ActionRespond ControlAction = "respond"
 )
 
+type ControlDisposition string
+
+const (
+	DispositionUnmatched ControlDisposition = "unmatched"
+	DispositionWaiting   ControlDisposition = "waiting"
+	DispositionReady     ControlDisposition = "ready"
+)
+
 type ControlResult struct {
 	ControlID string
 	Role      Role
 	Matched   bool
+
+	Disposition ControlDisposition
+	Reason      string
 
 	Action ControlAction
 	Acted  bool
@@ -55,26 +66,44 @@ func (c EventControl) Evaluate(event Event, s *state.State) ControlResult {
 	matched := c.matches(event)
 
 	result := ControlResult{
-		ControlID: c.ID,
-		Role:      c.Role,
-		Matched:   matched,
-		Action:    ActionNone,
+		ControlID:   c.ID,
+		Role:        c.Role,
+		Matched:     matched,
+		Disposition: DispositionUnmatched,
+		Action:      ActionNone,
 	}
 
 	if !matched {
 		return result
 	}
 
+	// The control is relevant to this event, but may still be waiting
+	// on causal inputs produced by an earlier phase.
+	result.Disposition = DispositionWaiting
+
 	for _, condition := range c.Requires {
 		if !condition.SatisfiedBy(s) {
+			result.Reason = unsatisfiedConditionReason(condition)
 			return result
 		}
 	}
 
+	result.Disposition = DispositionReady
 	result.Action = c.Action
 	result.Effects = append([]Effect(nil), c.Effects...)
 
 	return result
+}
+
+func unsatisfiedConditionReason(condition Condition) string {
+	switch condition.Op {
+	case ConditionPresent:
+		return "missing:" + condition.Fact
+	case ConditionAbsent:
+		return "present:" + condition.Fact
+	default:
+		return "unsatisfied:" + condition.Fact
+	}
 }
 
 func (c EventControl) matches(event Event) bool {
