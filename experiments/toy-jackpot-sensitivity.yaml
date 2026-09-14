@@ -1,0 +1,43 @@
+id: toy-jackpot-sensitivity
+metrics:
+  - id: node-access
+    fact: attacker:node-access
+  - id: credential-held
+    fact: attacker:cluster-credential
+
+runs:
+  - id: original-base
+    label: Original / no early isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-strong-brittle.yaml
+  - id: original-isolate
+    label: Original / early isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-jackpot.yaml
+
+  - id: side-branch-base
+    label: Side branch / no early isolation
+    scenario: sensitivity/toy-jackpot-side-branch.yaml
+    controls: subsets/toy-strong-brittle.yaml
+  - id: side-branch-isolate
+    label: Side branch / early isolation
+    scenario: sensitivity/toy-jackpot-side-branch.yaml
+    controls: subsets/toy-jackpot.yaml
+
+  - id: independent-evidence-base
+    label: Independent evidence / no early isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: sensitivity/toy-independent-evidence-base.yaml
+  - id: independent-evidence-isolate
+    label: Independent evidence / early isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: sensitivity/toy-independent-evidence-isolate.yaml
+
+  - id: late-isolation-base
+    label: Evidence first / no added isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: subsets/toy-strong-brittle.yaml
+  - id: late-isolation
+    label: Evidence first / late isolation
+    scenario: ../examples/notebook/toy-jackpot.yaml
+    controls: sensitivity/toy-late-isolation.yaml
