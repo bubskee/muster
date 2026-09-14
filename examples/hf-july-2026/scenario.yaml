@@ -90,12 +90,11 @@ events:
       add:
         - attacker:connector-catalog
 
-  # This transition abstracts the shared connector credential being usable as
-  # cluster-admin across multiple clusters.
+
   - id: shared-connector-credential-replay
     requires:
       present:
-        - attacker:worker-secrets
+        - attacker:cluster-secrets
         - attacker:connector-catalog
     effects:
       add:

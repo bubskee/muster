@@ -1,6 +1,5 @@
 # Counterfactual: a stolen connector credential is scoped so it cannot be
-# replayed as cluster-admin across clusters. This blocks the connector branch
-# but intentionally leaves the privileged-pod/node-root branch intact.
+# replayed as cluster-admin across clusters.
 
 id: hf-connector-scope
 

@@ -1,6 +1,5 @@
 # Counterfactual: reject the privileged hostPath pod described in the public
-# timeline. This blocks the node-root branch but intentionally does not block
-# the independent service-connector path.
+# timeline.
 
 id: hf-admission-policy
 
