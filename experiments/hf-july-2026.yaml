@@ -11,6 +11,8 @@ metrics:
     fact: attacker:internal-network-access
   - id: cluster-admin
     fact: attacker:cluster-admin
+  - id: worker-secrets
+    fact: attacker:worker-secrets
 
 runs:
   - id: observed-no-page
@@ -32,3 +34,8 @@ runs:
     label: Critical page + worker isolation
     scenario: ../examples/hf-july-2026/scenario.yaml
     controls: ../examples/hf-july-2026/page-and-isolate.yaml
+
+  - id: hdf5-hardening
+    label: Dataset local-file-read hardening
+    scenario: ../examples/hf-july-2026/scenario.yaml
+    controls: ../examples/hf-july-2026/hdf5-hardening.yaml
