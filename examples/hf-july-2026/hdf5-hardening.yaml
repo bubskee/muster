@@ -1,0 +1,19 @@
+id: hf-hdf5-hardening
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events:
+      - dataset-template-rce
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add:
+        - alert:worker-compromise
+
+  - id: reject-dataset-local-file-read
+    role: picket
+    events:
+      - dataset-local-file-read
+    substrate: dataset-processing
+    action: block
