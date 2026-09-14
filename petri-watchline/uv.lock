@@ -1,0 +1,20 @@
+version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[[package]]
+name = "petri-watchline"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "snakes" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "snakes", specifier = ">=0.9.33" }]
+
+[[package]]
+name = "snakes"
+version = "0.9.33"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/58/315d8c81caa41d1d88b221d9ce15fcb92e89b74c22ed9b540f22752cb0b3/SNAKES-0.9.33.tar.gz", hash = "sha256:af8c3046bfedf3e088b6bf37d451ad6aeeb79716f68a6253e44ddbd1c7e250f3", size = 677083, upload-time = "2024-06-03T11:00:14.525Z" }
