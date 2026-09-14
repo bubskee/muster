@@ -363,3 +363,7 @@ The same transparency that creates this residual risk is also central to the def
 Sol's summary:
 
 > LLMs were used extensively throughout this project. GPT-5.6 Sol was the primary implementation and research partner; Claude Opus 5 Max was used for adversarial review and red-teaming, with Claude Sonnet and Gemini used for smaller exploratory questions. Josh also used Fable 5.1 in his review and collaboration. Much of the code was initially generated with LLM assistance, but design choices, model semantics, scenario construction, and final inclusion decisions remained human decisions, and all code passed through human review. All reported experiments were run and inspected by the authors, with several results also reproduced or challenged through independent LLM-assisted passes. Red-team prompts and responses are retained in the repository where practical so that this part of the research process is inspectable rather than hidden. LLM output was treated as a source of candidate implementations, hypotheses, objections, and revisions—not as evidence for any empirical claim.
+
+Comment from Bobby:
+
+TODO!
