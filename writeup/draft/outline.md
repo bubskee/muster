@@ -1,3 +1,5 @@
+4 pages. One figure. Results ≠ interpretation. Every important assumption gets a “if false, then…” sentence.
+
 Title
 Abstract
 
