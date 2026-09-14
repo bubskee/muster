@@ -613,3 +613,31 @@ The compiler carried enough Muster semantics into the Petri representation that 
 > Every sufficiently disciplined grap can be embedded in a graph, provided one is willing to carry around enough snakes.
 
 Peer review pending.
+
+## 2026-09-14 — Defender history in Petri nets
+
+The defender-history result required no special Petri-net machinery.
+
+Two runs were constructed with identical attacker-visible state and identical remaining incident trace after an observation event:
+
+```text
+attacker: credential_held
+trace: ("review", "replay")
+```
+
+They differed only in defender state:
+
+```text
+persistent history:    alert_seen
+current-state-only:    -
+```
+
+The resulting reachability diverged. With `alert_seen`, review revoked the credential and later replay failed. Without persistent defender state, review was skipped and replay reached `node_access`.
+
+This suggests that the substantive phenomenon is ordinary state dependence:
+
+> Two executions can agree on attacker-visible state while differing in defender-history state, producing different later reachability.
+
+Petri nets represent this directly as different markings.
+
+The distinction therefore does not support a claim that Muster introduces a new state concept. Muster's contribution, if any, is in making defender history explicit and convenient within a fixed incident-replay workflow.
