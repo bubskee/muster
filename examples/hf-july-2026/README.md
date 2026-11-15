@@ -30,7 +30,9 @@ matter for defensive counterfactuals:
 5. Node root enabled cluster-secret theft and then mesh-network enrollment.
 6. Separately from the mesh path, the compromised worker could reach an
    internal service connector. A shared connector credential bound to
-   `system:masters` yielded cluster-admin across multiple clusters.
+   `system:masters` yielded cluster-admin across multiple clusters. In the
+   model, replaying that credential requires the cluster secrets harvested
+   after node root, so this step is downstream of the node-root path.
 7. Hugging Face reports that security signals were correlated into a coherent
    attack signal but failed to receive the correct criticality and on-call
    escalation.
@@ -40,23 +42,26 @@ exfiltration, supply-chain exploration, denied probes, persistence, and many
 other details. Those details are important to the incident but unnecessary for
 this demonstration.
 
-## The four runs
+## The five runs
 
 `observed-no-page.yaml` abstracts the disclosed detection/escalation failure: a
 Vedette records worker compromise, but no response follows. It does **not**
 claim that the real signal came from the exact event modeled here.
 
-The other three Watchlines are explicitly counterfactual:
+The other four Watchlines are explicitly counterfactual:
 
-- `admission-policy.yaml` blocks the privileged/hostPath pod. It should stop
-  node root and the secret/mesh branch while leaving the separate connector
-  path available.
+- `admission-policy.yaml` blocks the privileged/hostPath pod. It stops node
+  root and everything that depends on it: the secret/mesh branch and the
+  connector-credential replay, which needs the harvested cluster secrets.
 - `connector-scope.yaml` blocks cross-cluster replay of the shared connector
   identity. It should stop cluster-admin through that branch while leaving
   node-root/mesh compromise possible.
 - `page-and-isolate.yaml` models a correctly prioritized alert followed by
   worker isolation. It should cut both downstream branches after the initial
   worker RCE.
+- `hdf5-hardening.yaml` blocks the dataset local-file read. It protects the
+  worker's environment credentials and source, and leaves the rest of the
+  intrusion path intact.
 
 This is the point of the example: **different controls buy different pieces of
 the incident**, and a replay makes those counterfactual boundaries inspectable
@@ -82,12 +87,13 @@ go run . experiment --file experiments/hf-july-2026.yaml --format csv \
 
 Expected high-level shape:
 
-| Watchline | node root | internal network | cluster admin |
-|---|---:|---:|---:|
-| observed signal, no page | yes | yes | yes |
-| privileged/hostPath admission policy | no | no | yes |
-| cluster-scoped connector identity | yes | yes | no |
-| critical page + worker isolation | no | no | no |
+| Watchline | node root | internal network | cluster admin | worker secrets |
+|---|---:|---:|---:|---:|
+| observed signal, no page | yes | yes | yes | yes |
+| privileged/hostPath admission policy | no | no | no | yes |
+| cluster-scoped connector identity | yes | yes | no | yes |
+| critical page + worker isolation | no | no | no | yes |
+| dataset local-file-read hardening | yes | yes | yes | no |
 
 These are outputs of the **compressed model**, not empirical claims that any
 single intervention would certainly have produced the same outcome in the
