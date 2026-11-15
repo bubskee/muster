@@ -1,298 +1,330 @@
 # Muster
 
-**A small incident-replay harness for asking where defensive interventions actually change an attack.**
+**Muster replays a known security incident under different defenses and reports
+what the attacker can still do afterward.**
 
-> “If he sends reinforcements everywhere, he will everywhere be weak.”
->
-> — Sun Tzu, *The Art of War*, VI.17
+After an incident it is easy to point at a control and say "this would have
+stopped the attack." Stopped what, though? Initial access? Node root? One
+branch, or every branch? Muster turns that sentence into something you can run:
+hold a compressed incident trace fixed, add or move a defense, replay, and read
+off which attacker capabilities are still reachable.
 
-Muster takes a compressed attack trajectory, applies different defensive controls, and shows which downstream attacker capabilities remain reachable.
+It is a small Go engine with YAML scenarios and a Jupyter notebook on top. It
+was built in September 2026 for the Apart Research Incident Response Sprint,
+and the research is written up in
+[**Watchlines and Muster: Executable Counterfactuals for Cyber Defense**](writeup/muster-writeup.pdf).
 
-It was built alongside **Watchline**, a role-based model of layered defense.
+## What it looks like
 
-```text
-                  ATTACK TRAJECTORY
-                         │
-                         ▼
-             ─────── transition ───────
-                         │
-             🔭 VEDETTE  │ observe
-             🛡️ PICKET   │ intervene
-             🔧 RESERVE  │ recover
-                         │
-                         ▼
-             ─────── transition ───────
-                         │
-                        ...
+Here is Muster's model of the July 2026 Hugging Face intrusion, replayed under
+five defensive configurations. Each cell answers one question: at the end of
+the replay, does the attacker have this capability?
+
+| Defense                                | Node root | Internal network | Cluster admin | Worker secrets exposed |
+| -------------------------------------- | :-------: | :--------------: | :-----------: | :--------------------: |
+| Observed signal, no page (as reported) |    yes    |       yes        |      yes      |          yes           |
+| Privileged/hostPath admission policy   |    no     |        no        |      no       |          yes           |
+| Cluster-scoped connector identity      |    yes    |       yes        |      no       |          yes           |
+| Critical page + worker isolation       |    no     |        no        |      no       |          yes           |
+| Dataset local-file-read hardening      |    yes    |       yes        |      yes      |           no           |
+
+```bash
+go run . experiment --file experiments/hf-july-2026.yaml
 ```
 
-> **You cannot defend every transition. Where do you place your watchline?**
+Every one of these controls works at the thing it was designed to do. None of
+them leaves the attacker with nothing. The first row abstracts what Hugging Face
+reported; the other four are counterfactuals over a compressed model, not claims
+about what would certainly have happened in the real incident.
 
-## Why?
+## What the research found
 
-Post-incident analysis often asks:
+The sprint asked three questions. The answers are below, with the command that
+reproduces each one. The [writeup](writeup/muster-writeup.pdf) has the full
+argument in ten pages.
 
-* What happened?
-* What failed?
-* What would have stopped it?
+### 1. Different controls leave different problems behind
 
-That last question is easier in hindsight than the prospective problem:
-**what will the next incident look like?**
+In the Hugging Face model above, an admission policy that rejects privileged
+pods cuts off node root and everything downstream of it, but does nothing about
+the credentials exposed earlier through the dataset file-read path. Hardening
+that file read does the opposite: it protects the credentials and leaves the
+rest of the intrusion intact. Scoping the connector identity is narrower still.
 
-One control may stop a single attack path while leaving another open. Excellent detection may produce no effective response. A late intervention may still prevent the outcome that matters.
+So "did the control work?" is the wrong question. The useful one is: **what is
+still true afterward?**
 
-Muster makes those counterfactuals executable.
+### 2. Replay only earns its keep when the defender's memory matters
 
-## A counterintuitive result
+A fair objection is that a dependency graph already tells you all of this. We
+tested that before trusting the tool, with the incident, controls, predictions,
+and stop conditions frozen ahead of the decisive runs.
 
-The toy scenario contains a deliberately constructed example of
-**non-monotone defense**.
+Mostly the objection held. Several experiments collapsed to the obvious static
+answer: block a required edge and the downstream path disappears. Those are
+recorded as collapses, not dressed up as results.
 
-One Watchline detects later Kubernetes discovery and uses that evidence to revoke
-an already-stolen credential. That composition prevents node access.
+One did not collapse. Two scenarios differ only in when the attacker impairs
+worker telemetry: before stealing a credential, or just after. Under the same
+defenses, both runs arrive at the same attacker position and then diverge. The
+only difference left is that in one of them the defender had already recorded
+an alert before telemetry went dark. That remembered alert later enables review
+and credential revocation. Without it, the attacker reaches the node. Swap in a
+reviewer that only sees current state and the difference disappears.
 
-Add an otherwise useful early worker-isolation response, however, and the result
-gets worse: isolation removes the worker access needed for the later discovery
-event. The evidence needed to trigger credential revocation is never generated,
-the stolen credential survives, and the attacker reaches the node.
+```bash
+go run . replay --scenario examples/gate2-early.yaml   --controls examples/gate2-broad-correlated.yaml
+go run . replay --scenario examples/gate2-between.yaml --controls examples/gate2-broad-correlated.yaml
+```
 
-This is a **synthetic existence proof**, not a claim about the Hugging Face
-incident. The mechanism is the point:
+Replay is not useful just because an incident has an order. It is useful when
+what the defender saw earlier changes what the defender can do later.
 
-> **Containment is not always causally independent of investigation.**
+### 3. A working control can make the outcome worse
 
-You can reproduce the comparison directly:
+This one is a synthetic fixture, built on purpose, and it is the strangest
+result in the repository.
+
+![Early isolation removes the evidence path needed for later credential revocation](figures/jackpot-mechanism-horizontal.png)
+
+In the baseline, the attacker steals a cluster credential, then does Kubernetes
+discovery from the compromised worker. That discovery is the evidence that
+triggers revocation of the stolen credential, and the attack is contained.
+
+Now add early worker isolation. It works: worker access is cut off. But the
+later discovery never happens, so the evidence is never produced, so the
+credential is never revoked. A stolen credential does not need the worker it
+was stolen from, so the attacker replays it and reaches the node. Adding a
+functioning control ended with *more* attacker capability.
 
 ```bash
 go run . experiment --file experiments/toy-jackpot.yaml
 ```
 
-## Watchline
+To check that the mechanism is what we said it was, four perturbations were
+preregistered (in commit `dad8bf9`, before the fixtures or runs existed):
 
-Watchline groups defenses by role rather than product or infrastructure layer:
+| Perturbation                           | Predicted reversal | Observed |
+| -------------------------------------- | :----------------: | :------: |
+| Baseline                               |        yes         |   yes    |
+| Add an unrelated side branch           |        yes         |   yes    |
+| Add an independent evidence path       |         no         |    no    |
+| Isolate only after the evidence exists |         no         |    no    |
 
-**🔭 Vedette — observe**
-Detect, correlate, classify, or surface evidence.
+```bash
+go run . experiment --file experiments/toy-jackpot-sensitivity.yaml
+```
 
-**🛡️ Picket — intervene**
-Prevent or interrupt attacker transitions.
+This is an existence proof, not a frequency claim. It does not show that such
+reversals are common, and it says nothing about the Hugging Face incident. The
+lesson it supports is narrower: good controls do not automatically add up to a
+good defense, because containment is not always causally independent of
+investigation.
 
-**🔧 Reserve — recover**
-Contain compromise, revoke access, rebuild, or restore state.
+## How Muster works
 
-These roles are **interleaved**, not a pipeline. A system may have all three at many different layers.
+The model is deliberately small.
 
-Roughly, they map to familiar **Detect / Protect / Respond** activities. The
-point of the taxonomy is causal role, not new names for existing products.
+- **State** is a set of facts, such as `attacker:worker-access` or
+  `alert:worker-compromise`.
+- **Events** are the steps of the incident, in the order the scenario supplies.
+  Each has preconditions and effects. If an event's preconditions are not met,
+  it is skipped and replay moves on.
+- **Controls** are attached to events. They can observe (record an alert),
+  block (stop the event), or respond (change state afterward, for example by
+  removing a stolen credential). Review, criticality, and escalation steps sit
+  between observing and responding, so a response path can fail in the middle.
+- **Replay** is one deterministic pass. The output is the terminal state, plus
+  a trace of what every control did at every step.
 
-Muster lets you test those placements against an incident path.
+An event and a control look like this:
 
-> **Well-placed Pickets for what you expect. Broad Vedettes for what you might
-> notice. Robust Reserves for what you got wrong.**
+```yaml
+# scenario: one step of the incident
+- id: privileged-hostpath-pod
+  requires:
+    present: [attacker:worker-access, attacker:cluster-knowledge]
+  effects:
+    add: [attacker:privileged-hostpath]
 
-## Try Muster
+# control: a defense attached to that step
+- id: reject-privileged-hostpath
+  role: picket
+  events: [privileged-hostpath-pod]
+  substrate: kubernetes-admission
+  action: block
+```
 
-The easiest way to understand Muster is to **build a Watchline and replay an incident**.
+Scenarios and controls live in YAML. Replay semantics live in Go and nowhere
+else; the notebooks only select controls and display what the engine returns.
 
-Open [`notebooks/muster_lab.ipynb`](notebooks/muster_lab.ipynb).
+### Watchlines
 
-Start with the **Toy incident**. Pick defenses, run the replay, and see what the attacker can still reach. Change your Watchline and try again.
+Muster needed a way to talk about what a defense is *doing* at a given point in
+an incident, as opposed to which product or layer it belongs to. That
+vocabulary is the Watchline, which groups defenses by causal role:
 
-No Go or Python knowledge is required to use the lab.
+| Role        | Job                                             | In the model                         |
+| ----------- | ----------------------------------------------- | ------------------------------------ |
+| **Vedette** | See: something is happening.                    | Adds to what the defender knows.     |
+| **Picket**  | Interrupt: not through here.                    | Blocks an attacker step.             |
+| **Reserve** | Contain: we were wrong, so limit the damage.    | Changes state after a compromise.    |
 
-### Running the notebook
+These map roughly onto Detect / Protect / Respond, with one difference that
+matters: they are not stages in a pipeline. All three can recur several times
+in one incident, and results 2 and 3 above are both about what happens when the
+connections between them break.
 
-You’ll need **Go 1.22+**, **Python 3**, and Jupyter.
+## Try it
+
+### Command line
+
+You need [Go](https://go.dev/dl/) 1.22 or newer. Nothing else.
+
+```bash
+git clone https://github.com/bubskee/muster
+cd muster
+go run . experiment --file experiments/hf-july-2026.yaml
+```
+
+Experiments print a Markdown table by default; add `--format json` or
+`--format csv` for machine-readable output. To replay a single scenario against
+a single set of controls and see the terminal state:
+
+```bash
+go run . replay \
+  --scenario examples/hf-july-2026/scenario.yaml \
+  --controls examples/hf-july-2026/admission-policy.yaml
+```
+
+Add `--json` for the full step-by-step trace. `go test ./...` runs the engine
+tests.
+
+### Notebook
+
+[`notebooks/muster_lab.ipynb`](notebooks/muster_lab.ipynb) is the friendliest
+way in. You pick defenses under a small budget, replay a toy incident, and see
+what the attacker can still reach. The preset called "Want something
+counterintuitive?" walks you into result 3. No Go or Python knowledge is needed
+to use it, but both have to be installed, along with Jupyter:
+
+```bash
+python3 -m pip install jupyter ipywidgets
+python3 -m jupyter notebook notebooks/muster_lab.ipynb
+```
+
+Then choose **Run All**. Once the toy incident feels intuitive, switch the
+scenario dropdown to the Hugging Face model.
 
 <details>
-<summary><strong>Need to install Go or Python?</strong></summary>
+<summary>Installing Go and Python</summary>
 
-### macOS
-
-With [Homebrew](https://brew.sh/):
+**macOS**, with [Homebrew](https://brew.sh/):
 
 ```bash
 brew install go python
 ```
 
-### Windows
-
-With `winget`:
+**Windows**, with `winget`:
 
 ```powershell
 winget install GoLang.Go
 winget install Python.Python.3
 ```
 
-### Ubuntu / Debian
+**Ubuntu / Debian:**
 
 ```bash
 sudo apt update
 sudo apt install golang-go python3 python3-pip
 ```
 
-Check installation:
-
-```bash
-go version
-python3 --version
-```
-
-On Windows, use `python` if `python3` is unavailable.
+Check with `go version` and `python3 --version`. On Windows, use `python` if
+`python3` is unavailable.
 
 </details>
 
-Clone Muster:
+## Incident models
 
-```bash
-git clone https://github.com/bubskee/muster
-cd muster
-```
+| Model | What it is | Run it |
+| --- | --- | --- |
+| [Hugging Face, July 2026](examples/hf-july-2026/) | Ten-event abstraction of the intrusion, built from Hugging Face's published technical timeline. | `experiments/hf-july-2026.yaml` |
+| [Anthropic / PyPI, 2026](examples/anthropic-pypi-2026/) | An evaluation-environment incident that crossed three owners: the eval operator, a public package registry, and a third-party security vendor. Asks which owner could have interrupted it, and where. | `experiments/anthropic-pypi-2026.yaml` |
+| [Toy incident](examples/notebook/) | Six-event synthetic incident used by the notebook and by result 3. | `experiments/toy-jackpot.yaml` |
 
-Install Jupyter and launch the notebook:
+The two real-incident models are compressed from public reporting. They are
+not forensic reconstructions, and each example folder lists its sources and
+what it leaves out.
 
-```bash
-python3 -m pip install jupyter ipywidgets
-python3 -m jupyter notebook
-```
+## What Muster cannot tell you
 
-Navigate to:
+- **The analyst supplies the model.** Events, their order, their dependencies,
+  and what each control does are all chosen by whoever writes the scenario. A
+  missing path or a wrong dependency changes the answer. Running the model
+  makes those assumptions inspectable; it does not make them correct.
+- **The attacker does not adapt.** Replay is a single pass over a fixed trace.
+  A blocked step stays blocked unless another route was already written in.
+- **No probability, time, or cost.** Muster knows event order and nothing about
+  how long things take, how often a control fires, false positives, or what a
+  defense costs to deploy and operate.
+- **Hindsight is built in.** A Picket matched to a known trace has an advantage
+  no defender has in advance.
 
-```text
-notebooks/muster_lab.ipynb
-```
+> You can test whether your Watchline survives the attacks you imagined. You
+> cannot replay the attack you failed to imagine.
 
-Then choose **Run All**.
+Muster is a counterfactual reasoning aid. It is not a cyber range, an attacker
+emulator, or a threat model. It does not scan systems, find vulnerabilities, or
+search for bypasses, and its incident fixtures contain nothing beyond public
+reporting. The writeup discusses dual-use considerations in more detail.
 
-Once the toy model feels intuitive, switch to the **HF-inspired public-record abstraction**.
+## Still open
 
-## Hugging Face example
+Muster's representation is conventional, and the contribution was never meant
+to be a new formalism. After the sprint, the obvious question was how much of
+it is just a convenient presentation of ideas that existing formalisms already
+have. Two append-only research notebooks follow that question:
 
-The main real-world example is a compressed abstraction of the **July 2026 Hugging Face intrusion**, based on Hugging Face's published technical timeline.
+- [`the-road-goes-ever-on/grap-theory.md`](the-road-goes-ever-on/grap-theory.md)
+  maps Muster onto Petri nets. [`petri-watchline/`](petri-watchline/) compiles
+  the toy incident into a colored Petri net and reproduces both the reversal in
+  result 3 and the defender-history effect in result 2. So far: neither needs
+  machinery Muster invented. Defender history is ordinary state dependence.
+- [`the-road-goes-ever-on/hostile-graphs.md`](the-road-goes-ever-on/hostile-graphs.md)
+  moves to attack graphs and related security formalisms, and asks whether
+  fixed-trace replay with explicit defender state exposes anything those do
+  not already make convenient. That one is unresolved.
 
-It is **not a forensic reconstruction**. It preserves enough structure to compare defensive counterfactuals across two independent attack paths.
+The next experiment is to stop handing Muster a single fixed trace. Give it a
+handful of nearby ones, change a branch, move an event, break a dependency, and
+see when the answer changes. That is still not foresight, but it gets closer to
+the question Watchlines were meant to ask: how wrong can we be and still be
+okay?
 
-| Watchline                            | Node root | Internal network | Cluster admin |
-| ------------------------------------ | --------: | ---------------: | ------------: |
-| observed signal, no page             |       yes |              yes |           yes |
-| privileged/hostPath admission policy |        no |               no |           yes |
-| cluster-scoped connector identity    |       yes |              yes |            no |
-| critical page + worker isolation     |        no |               no |            no |
+## Repository map
 
-Different controls buy different pieces of the incident.
+| Path | Contents |
+| --- | --- |
+| `main.go`, `engine/`, `state/`, `config/`, `experiment/` | The replay engine, YAML loading, and the experiment runner. |
+| `examples/` | Incident models and control sets, each with provenance notes. |
+| `experiments/` | Experiment definitions: which scenario, which controls, which facts to report. |
+| `notebooks/` | `muster_lab` (interactive) and `muster_trace` (trace comparison). |
+| `writeup/` | The sprint paper, plus drafts. |
+| `figures/` | Figure 1 from the paper and the script that draws it. |
+| `runs/` | Recorded outputs: the sensitivity results and the traces `muster_trace` reads. |
+| `petri-watchline/`, `the-road-goes-ever-on/` | Post-sprint formalism comparisons. |
+| `scenarios/`, `watchlines/` | Earlier Go-defined fixtures and their tests, from before scenarios moved to YAML. |
+| `dev/archive/` | The working record: frozen experiment designs, preregistrations, and the red-team reviews the project was put through along the way. |
 
-Blocking privileged workloads cuts one branch but leaves the connector path open. Scoping the connector credential cuts that branch but leaves node compromise possible. Early escalation and worker isolation cuts both downstream paths.
+## Credits
 
-See [`examples/hf-july-2026/`](examples/hf-july-2026/) for provenance and modeling caveats.
+Muster was written by Bobby Faber for the Apart Research Incident Response
+Sprint. Joshua Ballard-Myer contributed review, additional experimental
+support, and conceptual development. LLMs were used heavily for implementation
+and for attacking the work; the writeup has a full usage statement.
 
-## Anthropic PyPI example
+The incident models rest on public reporting by
+[Hugging Face](https://huggingface.co/blog/agent-intrusion-technical-timeline)
+and [Anthropic](https://www.anthropic.com/news/investigating-incidents-cybersecurity-evals).
 
-A second public-record abstraction follows Anthropic's **2026 Claude Mythos 5 /
-PyPI incident** across three defensive boundaries: an evaluation environment, a
-public package registry, and a third-party security vendor.
-
-The example asks where a Watchline could interrupt the progression from
-unexpected public-internet access, to package publication, to third-party
-execution, credential exposure, and live-database access.
-
-See [`examples/anthropic-pypi-2026/`](examples/anthropic-pypi-2026/) for the
-compressed scenario, controls, provenance, and caveats.
-
-```bash
-go run . experiment --file experiments/anthropic-pypi-2026.yaml
-```
-
-## Model semantics and limits
-
-Muster is intentionally small and **attack-graph-like**. The claim is not that
-these incidents cannot be represented with attack graphs, state machines,
-Petri nets, or other formalisms. The value of the harness is making defensive
-state and counterfactual composition directly executable and inspectable.
-
-The model is simple:
-
-* **State** is a set of facts.
-* **Events** have preconditions and add/remove effects.
-* **Controls** are evaluated around events and may observe, block, review,
-  escalate, or respond.
-* **Reserves** can change persistent state, so defensive history can affect
-  later reachability.
-
-Deliberate limitations:
-
-* event order and attack relationships are supplied by the scenario;
-* replay is single-pass, and skipped events are not retried;
-* there is no probability, continuous time, attacker adaptation, or automatic
-  cost model;
-* a known trace gives matched Pickets an ex-post advantage defenders do not
-  have prospectively;
-* Muster can test relationships represented in the model, but it cannot
-  discover an attack relationship nobody modeled.
-
-> **You can test whether your Watchline survives the attacks you imagined.
-> You cannot replay the attack you failed to imagine.**
-
-Think of Muster as a **counterfactual reasoning aid**, not a cyber range,
-attacker emulator, or full threat model.
-
-## CLI and reproducible experiments
-
-The notebook sits on top of the Go replay engine. Technical users can run experiments directly:
-
-```bash
-go run . experiment --file experiments/hf-july-2026.yaml
-```
-
-JSON and CSV output are also available:
-
-```bash
-go run . experiment \
-  --file experiments/hf-july-2026.yaml \
-  --format json
-
-go run . experiment \
-  --file experiments/hf-july-2026.yaml \
-  --format csv
-```
-
-Individual scenario/control pairs can be replayed directly:
-
-```bash
-go run . replay \
-  --scenario examples/gate2-between.yaml \
-  --controls examples/gate2-broad-correlated.yaml
-```
-
-Scenario configuration lives in YAML; replay semantics remain in Go.
-
-## Direction
-
-Existing frameworks describe attacker techniques, defensive controls, and response playbooks.
-
-Muster explores one layer between them:
-
-```text
-incident / playbook
-        ↓
-defensive actions
-        ↓
-Watchline roles
-        ↓
-counterfactual replay
-        ↓
-what did this defense actually buy us?
-```
-
-Longer term, the question is whether this helps compare defensive portfolios, allocate scarce attention, and decide where the next watchline belongs.
-
-For now, it is a small executable argument.
-
----
-
-> “Everything is very simple in war, but the simplest thing is difficult.”
->
-> — Carl von Clausewitz, *On War*
-
----
-
-Built for the **Apart Research Incident Response Sprint**.
+Released under the [MIT License](LICENSE).
